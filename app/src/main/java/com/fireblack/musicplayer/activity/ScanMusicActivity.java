@@ -1,6 +1,9 @@
 package com.fireblack.musicplayer.activity;
 
+import android.app.ProgressDialog;
 import android.content.DialogInterface;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -23,6 +26,24 @@ public class ScanMusicActivity extends BaseActivity {
     private MusicManager musicManager;
     private List<ScanData> datas;
     private ListView lv_scan_music_list;
+    private ProgressDialog progressDialog;
+    private ScanListAdapter mAdapter;
+
+   private Handler handler = new Handler(){
+       @Override
+       public void handleMessage(Message msg) {
+           super.handleMessage(msg);
+           Bundle data = msg.getData();
+           String path = data.getString("path");
+           switch (msg.what){
+               case 0:
+                   progressDialog.setMessage(path);
+                   break;
+               default:
+                   break;
+           }
+       }
+   };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,7 +66,8 @@ public class ScanMusicActivity extends BaseActivity {
 
         musicManager = new MusicManager(this);
         datas = musicManager.searchByDirectory();
-        lv_scan_music_list.setAdapter(new ScanListAdapter(this,datas));
+        mAdapter = new ScanListAdapter(this,datas);
+        lv_scan_music_list.setAdapter(mAdapter);
         lv_scan_music_list.setOnItemClickListener(mItemClickListener);
 
         //扫描歌曲，添加目录按钮
@@ -61,7 +83,21 @@ public class ScanMusicActivity extends BaseActivity {
             switch (v.getId()){
                 case R.id.btn_scan_ok:
                     //开始扫描歌曲
-
+                    if(progressDialog == null){
+                        progressDialog = new ProgressDialog(ScanMusicActivity.this);
+                        progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+                    }
+                    progressDialog.setTitle("扫描歌曲");
+                    progressDialog.setMessage("正在扫描歌曲，请稍后..........");
+                    progressDialog.setCancelable(false);
+                    progressDialog.show();
+                    //开启子线程扫描音乐
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            musicManager.scanMusic(mAdapter.getCheckFilePath(),handler);
+                        }
+                    }).start();
                     break;
                 case R.id.btn_scan_add:
                     //开始添加目录

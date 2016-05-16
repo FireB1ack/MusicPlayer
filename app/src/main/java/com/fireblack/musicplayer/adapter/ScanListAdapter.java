@@ -43,6 +43,18 @@ public class ScanListAdapter extends BaseAdapter {
         return position;
     }
 
+    public String getCheckFilePath(){
+        return path;
+    }
+
+    /**
+     * @param path
+     * 设置选中的文件路径
+     */
+    public void setCheckFilePath(String path){
+        this.path = path;
+    }
+
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         ViewHolder mHolder = null;
@@ -65,10 +77,10 @@ public class ScanListAdapter extends BaseAdapter {
                 //通过点击CHeckBox选择是否添加路径
                 if(isChecked){
                     if(path.toString().indexOf("#"+filePath+"#") == -1){
-                        path = "#"+filePath+"#";
-                    }else {
-                        path = path.replace("#"+filePath+"#","");
+                        path += "#"+filePath+"#";
                     }
+                }else {
+                    path = path.replace("#"+filePath+"#","");
                 }
             }
         });

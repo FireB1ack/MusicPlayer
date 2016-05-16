@@ -32,7 +32,7 @@ public class SongDao {
         while(cursor.moveToNext()){
             String[] s = new String[5];
             s[0] = String.valueOf(cursor.getInt(cursor.getColumnIndex("_id")));
-            s[1] = Common.gainSuffix(cursor.getString(cursor.getColumnIndex("displayName")));
+            s[1] = Common.clearSuffix(cursor.getString(cursor.getColumnIndex("displayName")));
             s[2] = cursor.getString(cursor.getColumnIndex("name"));
             s[3] = cursor.getString(cursor.getColumnIndex("filePath"));
             s[4] = String.valueOf(cursor.getInt(cursor.getColumnIndex("isLike")));
@@ -41,5 +41,21 @@ public class SongDao {
         cursor.close();
         db.close();
         return list;
+    }
+
+    /**
+     * 查询本库中的所有歌曲信息,以便在扫描歌曲时不添加已经在本库中存在的歌曲
+     * 返回歌曲路径用"#[String]#"分隔
+     */
+    public String getFilePathAll(){
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        StringBuffer sb = new StringBuffer();
+        Cursor cursor = db.rawQuery("select filePath from song order by _id desc", null);
+        while (cursor.moveToNext()){
+            sb.append("#").append(cursor.getString(cursor.getColumnIndex("filePath"))).append("#");
+        }
+        cursor.close();
+        db.close();
+        return sb.toString();
     }
 }

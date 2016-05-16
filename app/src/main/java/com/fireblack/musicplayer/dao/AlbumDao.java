@@ -17,7 +17,7 @@ public class AlbumDao {
         dbHelper = new DBHelper(context);
     }
 
-    private List<String[]> searchByAll(){
+    public List<String[]> searchByAll(){
         List<String[]> list = new ArrayList<String[]>();
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         Cursor cursor = db.rawQuery("select * from album order by name desc", null);

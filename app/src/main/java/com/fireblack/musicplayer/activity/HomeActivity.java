@@ -22,6 +22,7 @@ import com.fireblack.musicplayer.R;
 import com.fireblack.musicplayer.adapter.ArtistItemAdapter;
 import com.fireblack.musicplayer.adapter.SongItemAdapter;
 import com.fireblack.musicplayer.custom.FlingGallery;
+import com.fireblack.musicplayer.dao.AlbumDao;
 import com.fireblack.musicplayer.dao.ArtistDao;
 import com.fireblack.musicplayer.dao.SongDao;
 import com.fireblack.musicplayer.utils.Common;
@@ -59,8 +60,10 @@ public class HomeActivity extends BaseActivity {
 
     private SongDao songDao;
     private ArtistDao artistDao;
+    private AlbumDao albumDao;
 
     private SharedPreferences preferences;
+
 
 
     @Override
@@ -81,6 +84,7 @@ public class HomeActivity extends BaseActivity {
 
         songDao = new SongDao(this);
         artistDao = new ArtistDao(this);
+        albumDao = new AlbumDao(this);
 
         //导航栏选项卡数组 实例化
         vg_list_tab_item[0] = (ViewGroup) this.findViewById(R.id.list_tab_item_music);
@@ -189,6 +193,8 @@ public class HomeActivity extends BaseActivity {
                 lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.default_list_singer));
             }else if(position == 3){//专辑
                 tv_list_content_title.setText("专辑");
+                List<String[]> data = albumDao.searchByAll();
+                lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.default_list_album));
             }
 
         }

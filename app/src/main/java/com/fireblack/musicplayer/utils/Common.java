@@ -64,11 +64,19 @@ public class Common {
     /**
      *根据文件名获取不带后缀名的文件名
      */
-    public static String gainSuffix(String string){
-        int j = string.lastIndexOf(".");
+    public static String clearSuffix(String str){
+        int j = str.lastIndexOf(".");
         if(j != -1){
-            return string.substring(0,j);
+            return str.substring(0,j);
         }
-        return string;
+        return str;
+    }
+
+    public static String getSuffix(String str){
+        int i = str.indexOf(".");
+        if(i != -1){
+            return str.substring(i+1).toUpperCase();
+        }
+        return str;
     }
 }
