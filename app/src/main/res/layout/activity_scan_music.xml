@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.fireblack.musicplayer.activity.ScanMusicActivity">
+
+    <include layout="@layout/scan_setting_top"
+             android:id="@+id/bar_setting_top"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#8f00000f"
+        android:layout_above="@+id/ll_scan_music_bottom"
+        android:layout_below="@+id/bar_setting_top"
+        >
+        <ListView
+            android:id="@+id/lv_scan_music_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:cacheColorHint="#00000000"
+            android:dividerHeight="1dp"
+            android:divider="#8f999999"
+            android:layout_gravity="top"
+            android:fadingEdge="none"></ListView>
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/ll_scan_music_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:background="@drawable/btn_common"
+        android:paddingBottom="10dp"
+        android:paddingTop="10dp">
+
+        <Button
+            android:id="@+id/btn_scan_ok"
+            style="@style/btn_style"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_scan_bottom_left"/>
+        <Button
+            android:id="@+id/btn_scan_add"
+            style="@style/btn_style"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_scan_bottom_right"/>
+    </LinearLayout>
+
+</RelativeLayout>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest package="com.fireblack.musicplayer"
+          xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 允许读取手机状态相关数据 -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <!-- 允许访问SD卡 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <!-- 允许访问互联网 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 允许挂载和反挂载文件系统可移动存储 -->
+    <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"/>
+    <!-- 允许程序读取或写入系统设置 -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+    <!-- 允许访问网络状态 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- 允许使用PowerManager的 WakeLocks保持进程在休眠时从屏幕消失 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/icon"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity android:name=".activity.HomeActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".activity.SplashActivity"></activity>
+        <activity android:name=".activity.ScanMusicActivity"></activity>
+        <activity android:name=".activity.ScanMusicActivity"></activity>
+    </application>
+
+</manifest>

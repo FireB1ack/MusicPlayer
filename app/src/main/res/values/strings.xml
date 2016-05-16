@@ -1,0 +1,20 @@
+<resources>
+    <string-array name="player_mode">
+        <item>顺序播放</item>
+        <item>随机播放</item>
+        <item>单曲循环</item>
+        <item>列表循环</item>
+    </string-array>
+    <string-array name="list_tab_items">
+        <item>本地音乐</item>
+        <item>网络音乐</item>
+        <item>下载管理</item>
+    </string-array>
+    <string name="app_name">音乐Player</string>
+
+    <string name="scan_top_title">扫描歌曲</string>
+    <string name="btn_scan_bottom_left">扫描歌曲</string>
+    <string name="btn_scan_bottom_right">添加目录</string>
+
+    <string name="btn_list_random_music">随机播放</string>
+</resources>
