@@ -8,7 +8,7 @@ import java.io.Serializable;
  */
 public class Artist implements Serializable {
     private static final long serialVersionUID = 1L;
-    private int id; //id
+    private int id; //id  0:表示未知歌手
     private String name; //歌手名字
     private String picPath; //歌手图片
 

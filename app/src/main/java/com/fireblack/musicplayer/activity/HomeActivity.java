@@ -27,6 +27,7 @@ import com.fireblack.musicplayer.dao.ArtistDao;
 import com.fireblack.musicplayer.dao.SongDao;
 import com.fireblack.musicplayer.utils.Common;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -57,6 +58,8 @@ public class HomeActivity extends BaseActivity {
     private TextView tv_list_content_title;//标题
     private ListView lv_list_change_content;//ListView
     private Button btn_list_random_music2;//随机播放按钮
+
+    private int pageNumber = 0;
 
     private SongDao songDao;
     private ArtistDao artistDao;
@@ -127,7 +130,7 @@ public class HomeActivity extends BaseActivity {
      * 显示扫描歌曲提示，只有在第一次进入软件界面提示
      */
     private void checkScannerTip() {
-        Boolean isScannerTip = preferences.getBoolean("isScannerTip", true);
+        Boolean isScannerTip = preferences.getBoolean("isScannerTip", false);
         if(!isScannerTip){
             final AlertDialog.Builder builder = new AlertDialog.Builder(HomeActivity.this);
             builder.setTitle("扫描提示");
@@ -137,12 +140,22 @@ public class HomeActivity extends BaseActivity {
                 public void onClick(DialogInterface dialog, int which) {
                     dialog.cancel();
                     dialog.dismiss();
-                    startActivity(new Intent(HomeActivity.this,ScanMusicActivity.class));
+                    Intent intent = new Intent(HomeActivity.this,ScanMusicActivity.class);
+                    startActivityForResult(intent,1);
                 }
             });
             builder.setNegativeButton("取消", null);
             builder.create().show();
             preferences.edit().putBoolean("isScannerTip", false).commit();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode == 1 && resultCode == 1){
+//            mediaPlayerManager.initScanner_SongInfo();
+            updateListAdapterData();
         }
     }
 
@@ -183,20 +196,34 @@ public class HomeActivity extends BaseActivity {
                 tv_list_content_title.setText("全部歌曲");
                 List<String[]> data = songDao.searchByAll();
                 lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this, data));
-                Log.v("tag", "12345");
                 btn_list_random_music2.setVisibility(View.VISIBLE);
                 btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
                 btn_list_random_music2.setTag(data.size());
             }else if(position == 2){//歌手
                 tv_list_content_title.setText("歌手");
                 List<String[]> data = artistDao.SearchByAll();
-                lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.default_list_singer));
+                System.out.println("##################################");
+
+                System.out.println("##################################");
+                lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this, data, R.drawable.default_list_singer));
             }else if(position == 3){//专辑
                 tv_list_content_title.setText("专辑");
                 List<String[]> data = albumDao.searchByAll();
                 lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.default_list_album));
             }
+            pageNumber = position;
+        }
+    }
 
+    /**
+     * 更新本地列表的数据展示
+     */
+    private void updateListAdapterData(){
+        if(pageNumber == 1){
+            List<String[]> data = songDao.searchByAll();
+            lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data));
+            btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
+            btn_list_random_music2.setTag(data.size());
         }
     }
 

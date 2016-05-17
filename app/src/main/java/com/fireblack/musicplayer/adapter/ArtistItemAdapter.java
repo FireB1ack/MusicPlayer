@@ -4,6 +4,8 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.text.TextUtils;
+import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
@@ -48,8 +50,9 @@ public class ArtistItemAdapter extends BaseAdapter {
         ViewHolder mHolder = null;
         if(convertView == null){
             mHolder = new ViewHolder();
+            convertView = LayoutInflater.from(context).inflate(R.layout.list_item,null);
             mHolder.iv_list_item_icon = (ImageView) convertView.findViewById(R.id.iv_list_item_icon);
-            mHolder.tv_list_item_title = (TextView) convertView.findViewById(R.id.tv_scan_item_title);
+            mHolder.tv_list_item_title = (TextView) convertView.findViewById(R.id.tv_list_item_title);
             mHolder.iv_list_item_icon2 = (ImageView) convertView.findViewById(R.id.iv_list_item_icon2);
             convertView.setTag(mHolder);
         }else {
@@ -68,6 +71,7 @@ public class ArtistItemAdapter extends BaseAdapter {
                 mHolder.iv_list_item_icon.setImageResource(defaultIcon);
             }
         }
+
         mHolder.tv_list_item_title.setText(data.get(position)[1]);
         mHolder.tv_list_item_title.setTag(data.get(position)[0]);
         mHolder.iv_list_item_icon2.setImageResource(R.drawable.playlist_sign);

@@ -12,18 +12,6 @@
         android:layout_alignParentLeft="true"
         android:layout_centerVertical="true"
         android:layout_margin="5dp"/>
-
-    <TextView
-        android:id="@+id/tv_list_item_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
-        android:lines="1"
-        android:singleLine="true"
-        android:layout_toLeftOf="@+id/iv_list_item_icon2"
-        android:layout_toRightOf="@+id/iv_list_item_icon"
-        android:textColor="#494949"
-        android:textSize="17sp"/>
     <ImageView
         android:id="@+id/iv_list_item_icon2"
         android:layout_width="30dp"
@@ -31,5 +19,16 @@
         android:layout_alignParentRight="true"
         android:layout_centerVertical="true"
         android:layout_margin="5dp"/>
+    <TextView
+        android:id="@+id/tv_list_item_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:lines="1"
+        android:singleLine="true"
+        android:layout_toLeftOf="@id/iv_list_item_icon2"
+        android:layout_toRightOf="@id/iv_list_item_icon"
+        android:textColor="#494949"
+        android:textSize="17sp"/>
 
 </RelativeLayout>

@@ -1,7 +1,9 @@
 package com.fireblack.musicplayer.activity;
 
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
@@ -38,6 +40,26 @@ public class ScanMusicActivity extends BaseActivity {
            switch (msg.what){
                case 0:
                    progressDialog.setMessage(path);
+                   break;
+               case 1:
+                   progressDialog.cancel();
+                   progressDialog.dismiss();
+                   final AlertDialog.Builder builder = new AlertDialog.Builder(ScanMusicActivity.this);
+                   builder.setTitle("扫描歌曲结果");
+                   builder.setMessage(path);
+                   builder.setIcon(R.drawable.ic_dialog);
+                   builder.setPositiveButton("确认", new DialogInterface.OnClickListener() {
+                       @Override
+                       public void onClick(DialogInterface dialog, int which) {
+                           dialog.cancel();
+                           dialog.dismiss();
+                           Intent intent = new Intent(ScanMusicActivity.this,HomeActivity.class);
+                           setResult(1,intent);
+                           finish();
+
+                       }
+                   });
+                   builder.show();
                    break;
                default:
                    break;

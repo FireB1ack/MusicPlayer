@@ -2,6 +2,7 @@ package com.fireblack.musicplayer.utils;
 
 import com.fireblack.musicplayer.R;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -68,6 +69,17 @@ public class Common {
         int j = str.lastIndexOf(".");
         if(j != -1){
             return str.substring(0,j);
+        }
+        return str;
+    }
+
+    /**
+     * 根据文件路径获取不带后缀名的文件名字
+     */
+    public static String clearDirectory(String str){
+        int i = str.lastIndexOf(File.separator);//File.separator: windows下为\ unix下为/
+        if(i != -1){
+            return clearSuffix(str.substring(i+1,str.length()));
         }
         return str;
     }

@@ -86,6 +86,7 @@ public class MusicManager {
         //查询在本库中不存在的所有歌曲
         HashMap<String,Song> map = searchBySong(song_filePath);
 
+        int count = 0;
         for(int i = 0; i < list.size(); i++ ){
             String fp = list.get(i);
             if(!song_filePath.contains("#" + fp + "#")){//判断歌曲是否在本库中
@@ -99,10 +100,65 @@ public class MusicManager {
 
                 Song song = map.get(fp);
                 if(song != null){
+                    //处理歌手
+                    Artist artist = song.getArtist();
+                    int artist_id = artistDao.isExist(artist.getName());
+                    //判断歌手名字是否在数据库已经存在，若果不存在就添加歌手名字
+                    if(artist_id == -1){
+                        artist_id = (int) artistDao.add(artist);
+                    }
+                    artist.setId(artist_id);
+                    song.setArtist(artist);
 
+                    //处理专辑
+                    Album album = song.getAlbum();
+                    int album_id = albumDao.isExist(album.getName());
+                    if(album_id == -1){
+                        album_id = (int) albumDao.add(album);
+                    }
+                    album.setId(album_id);
+                    song.setAlbum(album);
+                }else {
+                    song =new Song();
+                    //处理歌手，判断"未知歌手"名字是否在歌手表中已经存在
+                    int unArtist_id = artistDao.isExist("未知歌手");
+                    if(unArtist_id == -1){
+                        unArtist_id = (int) artistDao.add(new Artist(0, "未知歌手", ""));
+                    }
+                    song.setArtist(new Artist(unArtist_id,"",""));
+
+                    //处理专辑，判断"未知专辑"名字是否存在在专辑表中
+                    int unAlbum_id = albumDao.isExist("未知专辑");
+                    if(unAlbum_id == -1){
+                        unAlbum_id = (int) albumDao.add(new Album(0, "未知专辑", ""));
+                    }
+                    song.setAlbum(new Album(unAlbum_id, "", ""));
+                    song.setDisplayName(Common.clearDirectory(fp));
+                    song.setDurationTime(-1);
+                    song.setFilePath(fp);
+                    song.setLyricPath(null);
+                    song.setMimeType("");
+                    song.setName("");
+                    song.setIsNet(false);
+                    song.setNetUrl(null);
+                    song.setIsDownFinish(false);
+                    song.setIsLike(false);
+                    song.setPlayerList("#1#");
+                    song.setSize(-1);
+                }
+                if(songDao.add(song) > 0){
+                    count++;
                 }
             }
         }
+
+        Message msg = handler.obtainMessage();
+        Bundle data = new Bundle();
+        data.putString("path", "扫描完毕，一共" + count +"首歌曲！");
+        msg.what = 1;
+        msg.setData(data);
+        msg.sendToTarget();
+
     }
 
     /**

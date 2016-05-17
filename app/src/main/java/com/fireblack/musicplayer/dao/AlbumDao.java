@@ -1,8 +1,11 @@
 package com.fireblack.musicplayer.dao;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+
+import com.fireblack.musicplayer.entity.Album;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,5 +34,33 @@ public class AlbumDao {
         cursor.close();
         db.close();
         return list;
+    }
+
+    /**
+     *判断专辑名字是否存在，存在返回_id
+     */
+    public int isExist(String str){
+        int id = -1;
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Cursor cursor = db.rawQuery("select _id from album where name = ?", new String[]{str});
+        while (cursor.moveToNext()){
+            id = cursor.getInt(0);
+        }
+        cursor.close();
+        db.close();
+        return id;
+    }
+
+    /**
+     * 添加
+     */
+    public long add(Album album){
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("name",album.getName());
+        values.put("picPath",album.getPicPath());
+        long rowid = db.insert("album","name",values);
+        db.close();
+        return rowid;
     }
 }
