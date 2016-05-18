@@ -62,13 +62,28 @@ public class Common {
         return data;
     }
 
+    public static List<HashMap<String,Object>> getListDownLoadData(){
+        List<HashMap<String, Object>> data = new ArrayList<HashMap<String, Object>>();
+        HashMap<String, Object> map = new HashMap<String, Object>();
+        map.put("icon",String.valueOf(R.drawable.download_icon_down));
+        map.put("title","正在下载");
+        map.put("icon2",String.valueOf(R.drawable.playlist_sign));
+        data.add(map);
+
+        map.put("icon",String.valueOf(R.drawable.download_icon_finish));
+        map.put("title","下载完成");
+        map.put("icon2",String.valueOf(R.drawable.playlist_sign));
+        data.add(map);
+        return data;
+    }
+
     /**
      *根据文件名获取不带后缀名的文件名
      */
     public static String clearSuffix(String str){
         int j = str.lastIndexOf(".");
         if(j != -1){
-            return str.substring(0,j);
+            return str.substring(0, j);
         }
         return str;
     }
@@ -79,11 +94,25 @@ public class Common {
     public static String clearDirectory(String str){
         int i = str.lastIndexOf(File.separator);//File.separator: windows下为\ unix下为/
         if(i != -1){
-            return clearSuffix(str.substring(i+1,str.length()));
+            return clearSuffix(str.substring(i + 1, str.length()));
         }
         return str;
     }
 
+    /**
+     * 根据文件filePath获取文件所在目录
+     */
+    public static String clearFileName(String str){
+        int i = str.lastIndexOf(File.separator);
+        if(i != -1){
+            return str.substring(0, i + 1);
+        }
+        return str;
+    }
+
+    /**
+     * 获取后缀名
+     */
     public static String getSuffix(String str){
         int i = str.indexOf(".");
         if(i != -1){

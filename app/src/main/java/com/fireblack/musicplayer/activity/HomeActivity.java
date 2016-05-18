@@ -24,7 +24,9 @@ import com.fireblack.musicplayer.adapter.SongItemAdapter;
 import com.fireblack.musicplayer.custom.FlingGallery;
 import com.fireblack.musicplayer.dao.AlbumDao;
 import com.fireblack.musicplayer.dao.ArtistDao;
+import com.fireblack.musicplayer.dao.PlayerListDao;
 import com.fireblack.musicplayer.dao.SongDao;
+import com.fireblack.musicplayer.service.MediaPlayerManager;
 import com.fireblack.musicplayer.utils.Common;
 
 import java.util.Arrays;
@@ -64,9 +66,10 @@ public class HomeActivity extends BaseActivity {
     private SongDao songDao;
     private ArtistDao artistDao;
     private AlbumDao albumDao;
+    private PlayerListDao playerListDao;
 
     private SharedPreferences preferences;
-
+    private MediaPlayerManager mediaPlayerManager;
 
 
     @Override
@@ -88,6 +91,8 @@ public class HomeActivity extends BaseActivity {
         songDao = new SongDao(this);
         artistDao = new ArtistDao(this);
         albumDao = new AlbumDao(this);
+        playerListDao = new PlayerListDao(this);
+        mediaPlayerManager = new MediaPlayerManager(this);
 
         //导航栏选项卡数组 实例化
         vg_list_tab_item[0] = (ViewGroup) this.findViewById(R.id.list_tab_item_music);
@@ -123,7 +128,22 @@ public class HomeActivity extends BaseActivity {
         initTabItem();
         //初始化本地音乐内容区域
         initListMusicItem();
+        //初始化下载管理
+        initDownLoad();
 
+    }
+
+    /**
+     * 初始化下载
+     */
+    private void initDownLoad() {
+        List<HashMap<String,Object>> data = Common.getListDownLoadData();
+        SimpleAdapter download_adapter = new SimpleAdapter(this,data,R.layout.list_item,new String[]{"icon","title","icon2"},
+                new int[]{R.id.iv_list_item_icon,R.id.tv_list_item_title,R.id.iv_list_item_icon2});
+
+        ListView lv_list_download = (ListView) list_main_download.findViewById(R.id.lv_list_download);
+        lv_list_download.setAdapter(download_adapter);
+        lv_list_download.setOnItemClickListener(list_down_listener);
     }
 
     /**
@@ -179,6 +199,14 @@ public class HomeActivity extends BaseActivity {
         }
     };
 
+    //下载管理列表点击事件
+    private AdapterView.OnItemClickListener list_down_listener = new AdapterView.OnItemClickListener() {
+        @Override
+        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            JumpPages(1,position+8);
+        }
+    };
+
     /**
      * 执行跳转页面，进入各个各个子级列表
      * 默认页：0
@@ -202,14 +230,36 @@ public class HomeActivity extends BaseActivity {
             }else if(position == 2){//歌手
                 tv_list_content_title.setText("歌手");
                 List<String[]> data = artistDao.SearchByAll();
-                System.out.println("##################################");
-
-                System.out.println("##################################");
                 lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this, data, R.drawable.default_list_singer));
             }else if(position == 3){//专辑
                 tv_list_content_title.setText("专辑");
                 List<String[]> data = albumDao.searchByAll();
                 lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.default_list_album));
+            }else if(position == 4){//文件夹
+                tv_list_content_title.setText("文件夹");
+                List<String[]> data = songDao.searchByDirectory();
+                lv_list_change_content.setAdapter((new ArtistItemAdapter(HomeActivity.this,data,R.drawable.local_file)));
+            }else if(position == 5){//播放列表
+                tv_list_content_title.setText("播放列表");
+                List<String[]> data = playerListDao.searchAll();
+                lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.local_custom));
+            }else if(position == 6){//我最爱听
+                tv_list_content_title.setText("我最爱听");
+                List<String[]> data = songDao.searchByIsLike();
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data));
+                btn_list_random_music2.setVisibility(View.VISIBLE);
+                btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
+                btn_list_random_music2.setTag(data.size());
+            }else if(position == 7){//最近播放
+                tv_list_content_title.setText("最近播放");
+                List<String[]> data = songDao.searchByLately(mediaPlayerManager.getLatelyStr());
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data));
+                btn_list_random_music2.setVisibility(View.VISIBLE);
+                btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
+                btn_list_random_music2.setTag(data.size());
+            }else if(position == 8){//正在下载
+                tv_list_content_title.setText("正在下载");
+
             }
             pageNumber = position;
         }

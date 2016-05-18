@@ -13,6 +13,7 @@ import android.text.TextUtils;
 import com.fireblack.musicplayer.custom.Setting;
 import com.fireblack.musicplayer.dao.SongDao;
 import com.fireblack.musicplayer.entity.Song;
+import com.fireblack.musicplayer.utils.Common;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,13 +58,13 @@ public class MediaPlayerService extends Service {
         isFirst = true;
 
         //下一首
-        PendingIntent nextPendingIntent = PendingIntent.getService(this,1,new Intent(MediaPlayerManager.SERVICE_ACTION)
-                                                                    .putExtra("flag", MediaPlayerManager.SERVICE_MUSIC_NEXT),
-                                                                    PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent nextPendingIntent = PendingIntent.getService(this, 1, new Intent(MediaPlayerManager.SERVICE_ACTION)
+                        .putExtra("flag", MediaPlayerManager.SERVICE_MUSIC_NEXT),
+                PendingIntent.FLAG_UPDATE_CURRENT);
         //播放或暂停动作
         PendingIntent playerPendingIntent=PendingIntent.getService(this, 2, new Intent(MediaPlayerManager.SERVICE_ACTION)
-                                                                    .putExtra("flag", MediaPlayerManager.SERVICE_MUSIC_PLAYERORPAUSE)
-                                                                    , PendingIntent.FLAG_UPDATE_CURRENT);
+                .putExtra("flag", MediaPlayerManager.SERVICE_MUSIC_PLAYERORPAUSE)
+                , PendingIntent.FLAG_UPDATE_CURRENT);
         //上一首动作
         PendingIntent prevPendingIntent=PendingIntent.getService(this, 3, new Intent(MediaPlayerManager.SERVICE_ACTION)
                                                                     .putExtra("flag", MediaPlayerManager.SERVICE_MUSIC_PREV)
@@ -90,7 +91,7 @@ public class MediaPlayerService extends Service {
         } else {
             playerFlag = Integer.valueOf(s_player_flag);
         }
-        resetPlayerList();
+        resetPlayerList();//重置播放歌曲列表
     }
 
     /**
@@ -99,8 +100,94 @@ public class MediaPlayerService extends Service {
     public  void resetPlayerList() {
         switch (playerFlag){
             case MediaPlayerManager.PLAYERFLAG_ALL:
+                list = songDao.searchAll();
+                break;
+            case MediaPlayerManager.PLAYERFLAG_ALBUM:
+                list = songDao.searchAlbum(parameter);
+                break;
+            case MediaPlayerManager.PLAYERFLAG_ARTIST:
+                list = songDao.searchArtist(parameter);
+                break;
+            case MediaPlayerManager.PLAYERFLAG_DOWNLOAD:
+                list = songDao.searchDownload();
+                break;
+            case MediaPlayerManager.PLAYERFLAG_FOLDER:
+                list = songDao.searchFolder(parameter);
+                break;
+            case MediaPlayerManager.PLAYERFLAG_LATELY:
+                list = songDao.searLately(getLatelyStr());
+                break;
+            case MediaPlayerManager.PLAYERFLAG_LIKE:
+                list = songDao.searchIsLike();
+                break;
+            case MediaPlayerManager.PLAYERFLAG_PLAYERLIST:
+                list = songDao.searchPlayerList(parameter);
+                break;
+            case MediaPlayerManager.PLAYERFLAG_WEB:
+                //解析XML文件
+                break;
+            default:
+                break;
 
         }
+    }
+
+
+    /**
+     * 播放
+     */
+    private void player(){
+        if(playerFlag != MediaPlayerManager.PLAYERFLAG_WEB){
+            //准备状态
+            playerstate = MediaPlayerManager.STATE_PREPARE;
+        }else {//网络音乐-缓冲
+            playerstate = MediaPlayerManager.STATE_BUFFER;
+        }
+        if(mPlayer.isPlaying()){
+            mPlayer.stop();
+        }
+        if(song != null){
+            String name = song.getName();
+            //判断标题是否存在
+            if(TextUtils.isEmpty(name)){
+                name = Common.clearSuffix(song.getDisplayName());
+            }
+            showPrepare();
+        }
+    }
+
+    /**
+     * 显示播放信息
+     */
+    private void showPrepare() {
+        Intent intent = new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON);
+        intent.putExtra("flag",MediaPlayerManager.FLAG_PREPARE);
+        intent.putExtra("title",getTitle());
+        sendBroadcast(intent);
+    }
+
+    /**
+     * 返回当前播放歌曲标题
+     */
+    public String getTitle() {
+        if(song == null){
+            return "未知歌曲";
+        }
+        //判断标题是否存在
+        if(TextUtils.isEmpty(song.getName())){
+            return Common.clearSuffix(song.getDisplayName());
+        }
+        return song.getArtist().getName() + "-" + song.getName();
+    }
+
+    /**
+     * @获取最近播放字符串
+     */
+    public String getLatelyStr() {
+        if(TextUtils.isEmpty(latelyStr)){
+            return null;
+        }
+        return latelyStr.substring(0,latelyStr.length() - 1);
     }
 
     @Override
@@ -109,7 +196,7 @@ public class MediaPlayerService extends Service {
     }
 
     @Override
-    public void onStart(Intent intent, int startId) {
-        super.onStart(intent, startId);
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        return super.onStartCommand(intent, flags, startId);
     }
 }
