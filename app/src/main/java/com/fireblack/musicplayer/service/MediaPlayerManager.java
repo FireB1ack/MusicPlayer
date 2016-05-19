@@ -66,4 +66,35 @@ public class MediaPlayerManager {
         }
         return null;
     }
+
+    /**
+     * 获取当前播放歌曲的Id
+     */
+    public int getSongId(){
+        if(mMediaPlayerService != null){
+            return mMediaPlayerService.getSongId();
+        }
+        return -1;
+    }
+
+    /**
+     * 获取当前播放状态
+     */
+    public int getPlayerState(){
+        if(mMediaPlayerService != null){
+            return mMediaPlayerService.getPlayerState();
+        }
+        return -1;
+    }
+
+
+    /**
+     * 获取当前播放Flag
+     */
+    public int getPlayerFlag(){
+        if(mMediaPlayerService != null){
+            return mMediaPlayerService.getPlayerFlag();
+        }
+        return -1;
+    }
 }

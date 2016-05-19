@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -115,6 +116,7 @@ public class HomeActivity extends BaseActivity {
         lv_list_change_content = (ListView) findViewById(R.id.lv_list_change_content);
         btn_list_random_music2 = (Button) findViewById(R.id.btn_list_random_music2);
         ibtn_list_content_icon.setOnClickListener(imageButoon_listenner);
+        lv_list_change_content.setOnItemClickListener(list_change_content_listener);
 
         //切换主屏幕内容容器
         fgv_list_main = (FlingGallery) rl_list_main_content
@@ -170,6 +172,48 @@ public class HomeActivity extends BaseActivity {
         }
     }
 
+    //重写返回键事件
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if(keyCode == KeyEvent.KEYCODE_BACK){
+            if(pageNumber == 0){
+                int state = mediaPlayerManager.getPlayerState();
+                if(state == MediaPlayerManager.STATE_NULL || state == MediaPlayerManager.STATE_OVER || state == MediaPlayerManager.STATE_PAUSE){
+//                    cancelAutoShutdown();
+//                    mediaPlayerManager.stop();
+//                    downLoadManager.stop();
+                }
+                finish();
+                return true;
+            }
+            return backPage();
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    /**
+     * 返回键事件
+     */
+    private boolean backPage() {
+        if(pageNumber < 10){
+            rl_list_content.setVisibility(View.GONE);
+            rl_list_main_content.setVisibility(View.VISIBLE);
+            pageNumber = 0;
+            return true;
+        }else {
+            if(pageNumber == 22){
+                JumpPages(1, 2, null);
+            }else if(pageNumber == 33){
+                JumpPages(1,3,null);
+            }else if(pageNumber == 44){
+                JumpPages(1,4,null);
+            }else if(pageNumber == 55){
+                JumpPages(1,5,null);
+            }
+        }
+        return false;
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -195,7 +239,7 @@ public class HomeActivity extends BaseActivity {
     private AdapterView.OnItemClickListener list_music_listener = new AdapterView.OnItemClickListener() {
         @Override
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            JumpPages(1,position+1);
+            JumpPages(1,position+1,null);
         }
     };
 
@@ -203,17 +247,63 @@ public class HomeActivity extends BaseActivity {
     private AdapterView.OnItemClickListener list_down_listener = new AdapterView.OnItemClickListener() {
         @Override
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            JumpPages(1,position+8);
+            JumpPages(1,position+8,null);
         }
     };
 
+    private AdapterView.OnItemClickListener list_change_content_listener = new AdapterView.OnItemClickListener() {
+        @Override
+        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            if(pageNumber == 2){//歌手种类列表
+                JumpPages(2,22,view.getTag());
+            }else if(pageNumber == 3){//专辑种类列表
+                JumpPages(2,33,view.getTag());
+            }else if(pageNumber == 4){//文件夹种类列表
+                JumpPages(2,44,view.getTag());
+            }else if(pageNumber == 5){//播放列表列表
+                JumpPages(2,55,view.getTag());
+            }else if(pageNumber == 8){//正在下载列表
+
+            }else if(pageNumber == 9){//下载完成列表
+
+            }else if(pageNumber == 1){//全部歌曲列表
+                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_ALL,null);
+            }
+        }
+    };
+
+    private void playerMusicByItem(View view,int flag,String condition) {
+        if(mediaPlayerManager.getPlayerFlag() == MediaPlayerManager.PLAYERFLAG_WEB){
+            //网络列表#####################################################
+
+        }
+        int songId = Integer.valueOf(((SongItemAdapter.ViewHolder) view.getTag()).tv_song_list_item_bottom.getTag().toString());
+        if(songId == mediaPlayerManager.getSongId()){
+
+        }
+    }
+
+    private SongItemAdapter.ItemListener songItemListener = new SongItemAdapter.ItemListener() {
+        @Override
+        public void onLikeClick(int id, View view, int position) {
+
+        }
+
+        @Override
+        public void onMenuClick(int id, String text, String path, int position) {
+
+        }
+    };
+
+    private String condition = null;//当前歌曲列表查询条件
     /**
      * 执行跳转页面，进入各个各个子级列表
      * 默认页：0
      * 1.全部歌曲 2.歌手 3.专辑 4.文件夹 5.播放列表 6.我最爱听 7.最近播放 8.正在下载 9.下载完成
      * 22.歌手二级 33.专辑二级 44.文件夹二级 55.播放列表二级
      */
-    private void JumpPages(int index,int position) {
+    private void JumpPages(int index,int position,Object obj) {
+        int[] playerInfo = new int[]{mediaPlayerManager.getSongId(),mediaPlayerManager.getPlayerState()};
         if(index == 1){
             rl_list_main_content.setVisibility(View.GONE);
             rl_list_content.setVisibility(View.VISIBLE);
@@ -223,7 +313,7 @@ public class HomeActivity extends BaseActivity {
             if(position == 1){//全部歌曲
                 tv_list_content_title.setText("全部歌曲");
                 List<String[]> data = songDao.searchByAll();
-                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this, data));
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this, data,playerInfo));
                 btn_list_random_music2.setVisibility(View.VISIBLE);
                 btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
                 btn_list_random_music2.setTag(data.size());
@@ -246,32 +336,78 @@ public class HomeActivity extends BaseActivity {
             }else if(position == 6){//我最爱听
                 tv_list_content_title.setText("我最爱听");
                 List<String[]> data = songDao.searchByIsLike();
-                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data));
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
                 btn_list_random_music2.setVisibility(View.VISIBLE);
                 btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
                 btn_list_random_music2.setTag(data.size());
             }else if(position == 7){//最近播放
                 tv_list_content_title.setText("最近播放");
                 List<String[]> data = songDao.searchByLately(mediaPlayerManager.getLatelyStr());
-                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data));
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
                 btn_list_random_music2.setVisibility(View.VISIBLE);
                 btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
                 btn_list_random_music2.setTag(data.size());
             }else if(position == 8){//正在下载
                 tv_list_content_title.setText("正在下载");
 
+            }else if(position == 9){//下载完成
+
             }
+            pageNumber = position;
+        }else if(index == 2){//二级界面
+            btn_list_random_music2.setVisibility(View.VISIBLE);
+            TextView tv_list_item_title = ((ArtistItemAdapter.ViewHolder) obj).tv_list_item_title;
+            condition = tv_list_item_title.getTag().toString().trim();
+            tv_list_content_title.setText(tv_list_item_title.getText().toString());
+            List<String[]> data = null;
+            if(position == 22){//歌手
+                data = songDao.searchByArtist(condition);
+            }else if(position == 33){//专辑
+                data = songDao.searchByAlbum(condition);
+            }else if(position == 44){//文件夹
+                data = songDao.searchByDirectory(condition);
+            }else if(position == 55){//播放列表
+                data = songDao.searchByDisplayerList("#" + condition + "#");
+            }
+            lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
+            btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
+            btn_list_random_music2.setTag(data.size());
             pageNumber = position;
         }
     }
 
     /**
-     * 更新本地列表的数据展示
+     * 扫描后 更新本地列表的数据展示
+     * 该方法是在二级界面通过菜单键扫描后返回时更新
      */
     private void updateListAdapterData(){
+        int[] playerInfo = new int[]{mediaPlayerManager.getSongId(),mediaPlayerManager.getPlayerState()};
         if(pageNumber == 1){
             List<String[]> data = songDao.searchByAll();
-            lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data));
+            lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
+            btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
+            btn_list_random_music2.setTag(data.size());
+        }else if(pageNumber == 2){
+            List<String[]> data = artistDao.SearchByAll();
+            lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this, data, R.drawable.default_list_singer));
+        }else if(pageNumber == 3){
+            List<String[]> data = albumDao.searchByAll();
+            lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.default_list_album));
+        }else if(pageNumber == 4){
+            List<String[]> data = songDao.searchByDirectory();
+            lv_list_change_content.setAdapter((new ArtistItemAdapter(HomeActivity.this, data, R.drawable.local_file)));
+        }else if(pageNumber == 22 || pageNumber == 33 || pageNumber == 44 || pageNumber == 55){
+            List<String[]> data = null;
+            if(pageNumber == 22){//歌手
+                data = songDao.searchByArtist(condition);
+            }else if(pageNumber == 33){//专辑
+                data = songDao.searchByAlbum(condition);
+            }else if(pageNumber == 44){//文件夹
+                data = songDao.searchByDirectory(condition);
+            }else if(pageNumber == 55){//播放列表
+                data = songDao.searchByDisplayerList("#" + condition + "#");
+            }
+            lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
             btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
             btn_list_random_music2.setTag(data.size());
         }
