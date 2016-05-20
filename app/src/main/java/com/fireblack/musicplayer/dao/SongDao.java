@@ -552,4 +552,45 @@ public class SongDao {
         return song;
     }
 
+    /**
+     *更新播放时长
+     */
+    public void updateByDuration(int id,int duration){
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        db.execSQL("update song set durationTime=" + duration + " where _id=" + id);
+        db.close();
+    }
+
+    /**
+     * 更新播放大小
+     */
+    public void updateBySize(int id,int size){
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        db.execSQL("update song set size=" + size + " where _id=" + id);
+        db.close();
+    }
+
+    /**
+     * 更新是否是最爱
+     */
+    public void updateByLike(int id,int like){
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        db.execSQL("update song set isLike=" + like + " where _id=" + id);
+        db.close();
+    }
+
+    public void updateByPlayerList(int id,int list){
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        Cursor cursor = db.rawQuery("select playerList from song where _id=?", new String[]{String.valueOf(id)});
+        String playerList = null;
+        if(cursor.moveToNext()){
+            playerList = cursor.getString(0);
+        }
+        cursor.close();
+        if(!playerList.contains("#" + playerList + "#")){
+            db.execSQL("update song set playerList=? where _id=?", new Object[]{playerList + "#" +list + "#", id});
+        }
+        db.close();
+    }
+
 }

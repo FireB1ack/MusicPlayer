@@ -2,19 +2,21 @@ package com.fireblack.musicplayer.service;
 
 import android.app.PendingIntent;
 import android.app.Service;
-import android.appwidget.AppWidgetManager;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Binder;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
+import android.util.Log;
 
 import com.fireblack.musicplayer.custom.Setting;
 import com.fireblack.musicplayer.dao.SongDao;
 import com.fireblack.musicplayer.entity.Song;
 import com.fireblack.musicplayer.utils.Common;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -26,11 +28,12 @@ import java.util.concurrent.Semaphore;
  */
 public class MediaPlayerService extends Service {
 
+    private final IBinder mBinder = new MyBind();
     private MediaPlayer mPlayer;
     private List<Song> list;//播放歌曲列表
     private Song song;
     private int playerFlag;//播放列表
-    private int playerstate;//播放状态
+    private int playerState;//播放状态
     private int playerMode;//播放模式
     private int currentDuration = 0;//已经播放时长
     private List<Integer> randomIds;
@@ -48,8 +51,15 @@ public class MediaPlayerService extends Service {
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
-        return null;
+        return mBinder;
     }
+
+    public class MyBind extends Binder{
+        public MediaPlayerService getService(){
+            return MediaPlayerService.this;
+        }
+    }
+
 
     @Override
     public void onCreate() {
@@ -90,12 +100,25 @@ public class MediaPlayerService extends Service {
         String s_currentDuration = setting.getValue(Setting.KEY_PLAYER_CURRENTDURATION);
         String s_playerMode = setting.getValue(Setting.KEY_PLAYER_MODE);
         latelyStr = setting.getValue(Setting.KEY_PLAYER_LATELY);
+        Log.e("12345",playerFlag + "setting");
         if(TextUtils.isEmpty(s_player_flag)){
             playerFlag = MediaPlayerManager.PLAYERFLAG_ALL;
+            Log.e("12345",playerFlag + "All");
         } else {
             playerFlag = Integer.valueOf(s_player_flag);
         }
         resetPlayerList();//重置播放歌曲列表
+        playerState = MediaPlayerManager.STATE_PAUSE;
+        if(TextUtils.isEmpty(s_playerId) || s_playerId.equals("-1")){
+            if(list.size() != 0){
+                song = list.get(0);
+                Log.e("12345",playerFlag + "playerFlag");
+                Log.e("12345",song.getId() + "获得的ID");
+                Log.e("12345",song.getDisplayName() + "获得的名字");
+            }else {
+                playerState = MediaPlayerManager.STATE_NULL;
+            }
+        }
     }
 
     /**
@@ -138,14 +161,30 @@ public class MediaPlayerService extends Service {
 
 
     /**
+     * 初始化歌曲信息-在播放界面进入时
+     */
+    public void initPlayerSongInfo(){
+        Intent intent = new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON);
+        intent.putExtra("flag",MediaPlayerManager.FLAG_INIT);
+        intent.putExtra("title",getTitle());
+        intent.putExtra("currentPosition",currentDuration);
+        intent.putExtra("duration",getPlayerDuration());
+        intent.putExtra("albumPic", getAlbumPic());
+        intent.putExtra("playerMode",playerMode);
+        intent.putExtra("playerState",playerState);
+        sendBroadcast(intent);
+    }
+
+    /**
      * 播放
      */
     private void player(){
+//        isRun = false;
         if(playerFlag != MediaPlayerManager.PLAYERFLAG_WEB){
             //准备状态
-            playerstate = MediaPlayerManager.STATE_PREPARE;
+            playerState = MediaPlayerManager.STATE_PREPARE;
         }else {//网络音乐-缓冲
-            playerstate = MediaPlayerManager.STATE_BUFFER;
+            playerState = MediaPlayerManager.STATE_BUFFER;
         }
         if(mPlayer.isPlaying()){
             mPlayer.stop();
@@ -165,25 +204,31 @@ public class MediaPlayerService extends Service {
      */
     public void pauseOrPlayer(){
         if(mPlayer.isPlaying()){
+            Log.e("12345", "pause");
             mPlayer.pause();
             currentDuration = mPlayer.getCurrentPosition();
-            playerstate = MediaPlayerManager.STATE_PAUSE;
+            playerState = MediaPlayerManager.STATE_PAUSE;
         }else {
             //判断是否是启动后第一次播放
             if(isFirst){
+                Log.e("12345", "isFirst");
                 if(song != null){
-                    player(song.getId(),playerFlag,parameter);
+                    Log.e("12345", String.valueOf(song.getId()));
+                    player(song.getId(), playerFlag, parameter);
                 }else {
+                    Log.e("12345", "currention");
                     currentDuration = 0;
                 }
             }else {
                 if(isPrepare){
+                    Log.e("12345", "prepare");
                     player();
                 }else {
+                    Log.e("12345", "start");
                     mPlayer.start();
                 }
             }
-            playerstate = MediaPlayerManager.STATE_PLAYER;
+            playerState = MediaPlayerManager.STATE_PLAYER;
         }
     }
 
@@ -192,6 +237,8 @@ public class MediaPlayerService extends Service {
      */
     public void player(int id,int playerFlag,String parameter){
         if(this.playerFlag != playerFlag){
+            Log.e("1234567",String.valueOf(this.playerFlag));
+            Log.e("12345",String.valueOf(playerFlag));
             this.playerFlag = playerFlag;
             this.parameter = parameter;
             resetPlayerList();
@@ -199,13 +246,14 @@ public class MediaPlayerService extends Service {
         this.playerFlag = playerFlag;
         this.parameter = parameter;
         if(playerFlag != MediaPlayerManager.PLAYERFLAG_WEB){
+            Log.e("12345","not web");
             if(song != null){
                 if(song.getId() != id){
                     isFirst = false;
                 }
             }
             song = songDao.searchById(id);
-            playerstate = MediaPlayerManager.STATE_PLAYER;
+            playerState = MediaPlayerManager.STATE_PLAYER;
         }else {
             for (Song s : list) {
                 if(s.getId() == id){
@@ -223,15 +271,49 @@ public class MediaPlayerService extends Service {
     }
 
     /**
-     * 显示播放信息
+     * 显示播放信息,发送广播
      */
     private void showPrepare() {
         Intent intent = new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON);
         intent.putExtra("flag",MediaPlayerManager.FLAG_PREPARE);
         intent.putExtra("title",getTitle());
         intent.putExtra("currentPosition",isFirst?currentDuration:0);
-//        intent.putExtra("duration",get)
+        intent.putExtra("duration",getPlayerDuration());
+        intent.putExtra("albumPic", song.getAlbum().getPicPath());
         sendBroadcast(intent);
+    }
+
+
+    /**
+     * 获取当前播放歌曲的时长
+     */
+    public int getPlayerDuration(){
+        if(song == null){
+            return 0;
+        }
+        int durationTime = song.getDurationTime();
+        if(durationTime == -1){//先判断扫描文件是否获取了歌曲时长
+            song.setDurationTime(getSongDurationTIme(song.getId(), song.getDurationTime()));
+        }
+        return durationTime;
+    }
+
+    private  int getSongDurationTIme(int id,int durationTime){
+        int time = durationTime;
+        MediaPlayer player = MediaPlayer.create(this, Uri.parse(song.getFilePath()));
+        try {
+            player.prepare();
+            time = player.getDuration();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }finally {
+            player.release();
+            player = null;
+        }
+        if(time != -1){
+            songDao.updateByDuration(id, time);
+        }
+        return time;
     }
 
     /**
@@ -246,16 +328,6 @@ public class MediaPlayerService extends Service {
             return Common.clearSuffix(song.getDisplayName());
         }
         return song.getArtist().getName() + "-" + song.getName();
-    }
-    public int getPlayerDuration(){
-        if(song == null){
-            return 0;
-        }
-        int durationTime = song.getDurationTime();
-        if(durationTime == -1){
-//            song.setDurationTime();
-        }
-        return durationTime;
     }
 
     /**
@@ -272,7 +344,7 @@ public class MediaPlayerService extends Service {
      * 获取当前播放状态
      */
     public int getPlayerState(){
-        return playerstate;
+        return playerState;
     }
 
     /**
@@ -290,6 +362,27 @@ public class MediaPlayerService extends Service {
             return null;
         }
         return latelyStr.substring(0,latelyStr.length() - 1);
+    }
+
+    public int getPlayerMode(){
+        return playerMode;
+    }
+
+    /**
+     * @获取当前播放歌曲的进度
+     */
+    public  int getPlayerProgress(){
+        return currentDuration;
+    }
+
+    /**
+     * 获取专辑图片
+     */
+    public String getAlbumPic(){
+        if(song == null){
+            return null;
+        }
+        return song.getAlbum().getPicPath();
     }
 
     @Override

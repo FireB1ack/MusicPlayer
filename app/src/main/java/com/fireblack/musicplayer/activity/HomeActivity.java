@@ -133,6 +133,27 @@ public class HomeActivity extends BaseActivity {
         //初始化下载管理
         initDownLoad();
 
+        mediaPlayerManager.setConnectionListener(serviceConnectionListener);
+    }
+
+    private MediaPlayerManager.ServiceConnectionListener serviceConnectionListener = new MediaPlayerManager.ServiceConnectionListener() {
+        @Override
+        public void onServiceConnected() {
+            //重新拿数据
+            mediaPlayerManager.initPlayerSongInfo();
+//            updateSongItemList();
+        }
+
+        @Override
+        public void onServiceDisconnected() {
+
+        }
+    };
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mediaPlayerManager.startAndBindService();
     }
 
     /**
@@ -267,20 +288,42 @@ public class HomeActivity extends BaseActivity {
             }else if(pageNumber == 9){//下载完成列表
 
             }else if(pageNumber == 1){//全部歌曲列表
-                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_ALL,null);
+                Log.e("12345",String.valueOf(pageNumber));
+                playerMusicByItem(view, MediaPlayerManager.PLAYERFLAG_ALL, null);
             }
         }
     };
 
     private void playerMusicByItem(View view,int flag,String condition) {
-        if(mediaPlayerManager.getPlayerFlag() == MediaPlayerManager.PLAYERFLAG_WEB){
-            //网络列表#####################################################
-
-        }
+//        if(mediaPlayerManager.getPlayerFlag() == MediaPlayerManager.PLAYERFLAG_WEB){
+//            //网络列表#####################################################
+//
+//        }
         int songId = Integer.valueOf(((SongItemAdapter.ViewHolder) view.getTag()).tv_song_list_item_bottom.getTag().toString());
+        Log.e("12345", String.valueOf(mediaPlayerManager.getSongId()));
         if(songId == mediaPlayerManager.getSongId()){
-
+            Log.e("12345",String.valueOf(mediaPlayerManager.getSongId()));
+            PlayerOrPause(view);
         }
+    }
+
+    /**
+     * @param view
+     * 播放或暂停歌曲
+     */
+    private void PlayerOrPause(View view) {
+//        if(mediaPlayerManager.getPlayerState() == MediaPlayerManager.STATE_NULL){
+//            Toast.makeText(this,"请先添加歌曲",Toast.LENGTH_LONG).show();
+//            return;
+//        }
+//        if(view == null){
+//            //当前列表播放结束
+//            if(mediaPlayerManager.getPlayerState() == MediaPlayerManager.STATE_OVER){
+//                Toast.makeText(this,"当前播放列表已经播放结束",Toast.LENGTH_SHORT).show();
+//                return;
+//            }
+//        }
+        mediaPlayerManager.pauseOrPlayer();
     }
 
     private SongItemAdapter.ItemListener songItemListener = new SongItemAdapter.ItemListener() {

@@ -1,6 +1,12 @@
 package com.fireblack.musicplayer.service;
 
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.IBinder;
+import android.util.Log;
 
 /**
  * Created by ChengHao on 2016/5/17.
@@ -8,6 +14,7 @@ import android.content.ContextWrapper;
 public class MediaPlayerManager {
     private MediaPlayerService mMediaPlayerService;
     private ContextWrapper mContextWrapper;
+    private ServiceConnectionListener serviceConnectionListener;
 
     public static final String SERVICE_ACTION = "com.fireblack.musicplayer.service.mediaplayer";
     public static String BROADCASTRECEVIER_ACTON = "com.fireblack.musicplayer.brocast";
@@ -57,6 +64,54 @@ public class MediaPlayerManager {
         this.mContextWrapper = mContextWrapper;
     }
 
+    public interface ServiceConnectionListener{
+        public void onServiceConnected();
+        public void onServiceDisconnected();
+    }
+
+    public void setConnectionListener(ServiceConnectionListener listener){
+        serviceConnectionListener = listener;
+    }
+
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mMediaPlayerService = ((MediaPlayerService.MyBind)service).getService();
+            if(serviceConnectionListener != null){
+                serviceConnectionListener.onServiceConnected();
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mMediaPlayerService = null;
+            if(serviceConnectionListener != null){
+                serviceConnectionListener.onServiceDisconnected();
+            }
+        }
+    };
+
+    /**
+     * 开始服务并绑定服务
+     */
+    public void startAndBindService(){
+        mContextWrapper.startService(new Intent(SERVICE_ACTION));
+        mContextWrapper.bindService(new Intent(SERVICE_ACTION),serviceConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    public void unbindService(){
+        mContextWrapper.unbindService(serviceConnection);
+    }
+
+    /**
+     * 初始化歌曲信息-在播放界面进入时
+     */
+    public void initPlayerSongInfo(){
+        if(mMediaPlayerService != null){
+            mMediaPlayerService.initPlayerSongInfo();
+        }
+    }
+
     /**
      * 获取最近播放 ————字符串
      */
@@ -65,6 +120,13 @@ public class MediaPlayerManager {
             return mMediaPlayerService.getLatelyStr();
         }
         return null;
+    }
+
+    public void pauseOrPlayer(){
+        if(mMediaPlayerService != null){
+            Log.e("12345","OK");
+            mMediaPlayerService.pauseOrPlayer();
+        }
     }
 
     /**
