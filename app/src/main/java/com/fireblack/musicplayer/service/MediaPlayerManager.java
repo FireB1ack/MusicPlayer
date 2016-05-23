@@ -25,6 +25,7 @@ public class MediaPlayerManager {
     public static final int FLAG_LIST=3;//自动播放时，更新前台列表状态
     public static final int FLAG_BUFFERING=4;//网络音乐-缓冲数据
 
+
     //MediaPlayerService onStart flag
     public static final int SERVICE_RESET_PLAYLIST = 0;//更新播放列表
     public static final int SERVICE_MUSIC_PAUSE = 1;//暂停
@@ -96,7 +97,7 @@ public class MediaPlayerManager {
      */
     public void startAndBindService(){
         mContextWrapper.startService(new Intent(SERVICE_ACTION));
-        mContextWrapper.bindService(new Intent(SERVICE_ACTION),serviceConnection, Context.BIND_AUTO_CREATE);
+        mContextWrapper.bindService(new Intent(SERVICE_ACTION), serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
     public void unbindService(){
@@ -109,6 +110,15 @@ public class MediaPlayerManager {
     public void initPlayerSongInfo(){
         if(mMediaPlayerService != null){
             mMediaPlayerService.initPlayerSongInfo();
+        }
+    }
+
+    /**
+     * 初始化歌曲信息-扫描之后
+     * */
+    public void initScanner_SongInfo(){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.initScanner_SongInfo();
         }
     }
 
@@ -126,6 +136,17 @@ public class MediaPlayerManager {
         if(mMediaPlayerService != null){
             Log.e("12345","OK");
             mMediaPlayerService.pauseOrPlayer();
+        }else{
+            Log.e("12345","no song");
+        }
+    }
+
+    /**
+     * 根据指定条件播放
+     * */
+    public void player(int id,int playerFlag,String parameter){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.player(id,playerFlag,parameter);
         }
     }
 

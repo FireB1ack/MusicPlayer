@@ -40,4 +40,18 @@ public class Setting {
         editor.putString(key,value);
         editor.commit();
     }
+
+    /**
+     * 保存播放信息[0:歌曲Id 1:已经播放时长 2:播放模式3:播放列表Flag 4:播放列表查询参数 5:最近播放的]
+     * */
+    public void setPlayerInfo(String[] playerInfos){
+        SharedPreferences.Editor it = preferences.edit();
+        it.putString(KEY_PLAYER_ID, playerInfos[0]);
+        it.putString(KEY_PLAYER_CURRENTDURATION, playerInfos[1]);
+        it.putString(KEY_PLAYER_MODE, playerInfos[2]);
+        it.putString(KEY_PLAYER_FLAG, playerInfos[3]);
+        it.putString(KEY_PLAYER_PARAMETER, playerInfos[4]);
+        it.putString(KEY_PLAYER_LATELY, playerInfos[5]);
+        it.commit();
+    }
 }

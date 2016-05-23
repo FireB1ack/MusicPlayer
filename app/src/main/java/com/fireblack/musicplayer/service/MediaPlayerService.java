@@ -7,10 +7,13 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.View;
 
+import com.fireblack.musicplayer.R;
 import com.fireblack.musicplayer.custom.Setting;
 import com.fireblack.musicplayer.dao.SongDao;
 import com.fireblack.musicplayer.entity.Song;
@@ -19,6 +22,7 @@ import com.fireblack.musicplayer.utils.Common;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -29,6 +33,11 @@ import java.util.concurrent.Semaphore;
 public class MediaPlayerService extends Service {
 
     private final IBinder mBinder = new MyBind();
+
+    // 播放动作
+    private static final int ACTION_NEXT = 1;// 下一首播放
+    private static final int ACTION_PREVIOUS = 2;// 上一首播放
+    private static final int ACTION_AUTO = 0;// 自动执行下一首
     private MediaPlayer mPlayer;
     private List<Song> list;//播放歌曲列表
     private Song song;
@@ -38,14 +47,16 @@ public class MediaPlayerService extends Service {
     private int currentDuration = 0;//已经播放时长
     private List<Integer> randomIds;
     private ExecutorService mExecutorService; //线程池
+    private boolean isRun = true;
     final Semaphore mSemaphore = new Semaphore(1);
     private SongDao songDao;
     private boolean isFirst;//是否是启动后第一次播放
+    private boolean isDeleteStop=false;
     private String parameter;//查询参数
     private String latelyStr;//最近播放歌曲拼接而成的字符串
 
     private String isStartUp;
-    private boolean isPrepare = false;
+    private boolean isPrepare = true;
     private boolean isDeleteSop = false;
 
     @Nullable
@@ -85,6 +96,10 @@ public class MediaPlayerService extends Service {
                                                                     , PendingIntent.FLAG_UPDATE_CURRENT);
 
         init();
+
+        // 申请wake lock保证了CPU维持唤醒状态
+        mPlayer.setWakeMode(getApplicationContext(),
+                PowerManager.PARTIAL_WAKE_LOCK);
     }
 
     /**
@@ -100,10 +115,8 @@ public class MediaPlayerService extends Service {
         String s_currentDuration = setting.getValue(Setting.KEY_PLAYER_CURRENTDURATION);
         String s_playerMode = setting.getValue(Setting.KEY_PLAYER_MODE);
         latelyStr = setting.getValue(Setting.KEY_PLAYER_LATELY);
-        Log.e("12345",playerFlag + "setting");
         if(TextUtils.isEmpty(s_player_flag)){
             playerFlag = MediaPlayerManager.PLAYERFLAG_ALL;
-            Log.e("12345",playerFlag + "All");
         } else {
             playerFlag = Integer.valueOf(s_player_flag);
         }
@@ -112,14 +125,49 @@ public class MediaPlayerService extends Service {
         if(TextUtils.isEmpty(s_playerId) || s_playerId.equals("-1")){
             if(list.size() != 0){
                 song = list.get(0);
-                Log.e("12345",playerFlag + "playerFlag");
-                Log.e("12345",song.getId() + "获得的ID");
-                Log.e("12345",song.getDisplayName() + "获得的名字");
             }else {
                 playerState = MediaPlayerManager.STATE_NULL;
             }
+        }else {
+            // 网络歌曲列表，遍历查找
+            if (playerFlag == MediaPlayerManager.PLAYERFLAG_WEB) {
+                for (Song s : list) {
+                    if (s.getId() == Integer.valueOf(s_playerId)) {
+                        song = s;
+                        break;
+                    }
+                }
+                // 网络歌曲找不到了，就播放全部歌曲
+                if (song == null) {
+                    playerFlag = MediaPlayerManager.PLAYERFLAG_ALL;
+                    resetPlayerList();
+                    if (list.size() != 0) {
+                        song = list.get(0);
+                    } else {
+                        playerState = MediaPlayerManager.STATE_NULL;
+                    }
+                }
+            } else {
+                song = songDao.searchById(Integer.valueOf(s_playerId));
+            }
+        }
+        if (!TextUtils.isEmpty(s_currentDuration)) {
+            currentDuration = Integer.valueOf(s_currentDuration);
+        }
+        if (TextUtils.isEmpty(s_playerMode)) {
+            playerMode = MediaPlayerManager.MODE_CIRCLELIST;
+        } else {
+            playerMode = Integer.valueOf(s_playerMode);
+            if (playerMode == MediaPlayerManager.MODE_CIRCLEONE) {
+                mPlayer.setLooping(true);
+            }
+            if(playerMode==MediaPlayerManager.MODE_RANDOM){
+                if(song!=null)
+                    randomIds.add(song.getId());
+            }
         }
     }
+
 
     /**
      * 重置播放歌曲列表
@@ -127,6 +175,7 @@ public class MediaPlayerService extends Service {
     public  void resetPlayerList() {
         switch (playerFlag){
             case MediaPlayerManager.PLAYERFLAG_ALL:
+                Log.e("12345","传入的playerFlag"+playerFlag);
                 list = songDao.searchAll();
                 break;
             case MediaPlayerManager.PLAYERFLAG_ALBUM:
@@ -176,10 +225,33 @@ public class MediaPlayerService extends Service {
     }
 
     /**
+     * 初始化歌曲信息-扫描之后
+     * */
+    public void initScanner_SongInfo() {
+        if (playerState != MediaPlayerManager.STATE_NULL) {
+            return;
+        }
+        resetPlayerList();
+        playerState = MediaPlayerManager.STATE_PAUSE;
+        if (list.size() != 0) {
+            song = list.get(0);
+        } else {
+            playerState = MediaPlayerManager.STATE_NULL;
+        }
+        Intent it = new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON);
+        it.putExtra("flag", MediaPlayerManager.FLAG_INIT);
+        it.putExtra("currentPosition", currentDuration);
+        it.putExtra("duration", getPlayerDuration());
+        it.putExtra("title", getTitle());
+        it.putExtra("albumPic", getAlbumPic());
+        sendBroadcast(it);
+    }
+
+    /**
      * 播放
      */
     private void player(){
-//        isRun = false;
+        isRun = false;
         if(playerFlag != MediaPlayerManager.PLAYERFLAG_WEB){
             //准备状态
             playerState = MediaPlayerManager.STATE_PREPARE;
@@ -196,6 +268,19 @@ public class MediaPlayerService extends Service {
                 name = Common.clearSuffix(song.getDisplayName());
             }
             showPrepare();
+        }
+        mExecutorService.execute(new MediaPlayerRunnable());
+    }
+
+    /**
+     * 准备
+     */
+    private void prepare(String path){
+        try {
+            mPlayer.setDataSource(path);
+            mPlayer.prepare();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -237,8 +322,6 @@ public class MediaPlayerService extends Service {
      */
     public void player(int id,int playerFlag,String parameter){
         if(this.playerFlag != playerFlag){
-            Log.e("1234567",String.valueOf(this.playerFlag));
-            Log.e("12345",String.valueOf(playerFlag));
             this.playerFlag = playerFlag;
             this.parameter = parameter;
             resetPlayerList();
@@ -246,7 +329,6 @@ public class MediaPlayerService extends Service {
         this.playerFlag = playerFlag;
         this.parameter = parameter;
         if(playerFlag != MediaPlayerManager.PLAYERFLAG_WEB){
-            Log.e("12345","not web");
             if(song != null){
                 if(song.getId() != id){
                     isFirst = false;
@@ -271,6 +353,226 @@ public class MediaPlayerService extends Service {
     }
 
     /**
+     * 播放
+     * */
+    private void doPlayer(int action,boolean isPlayer) {
+        switch (playerMode) {
+            case MediaPlayerManager.MODE_CIRCLELIST:// 顺序播放
+                if (list.size() == 1) {
+                    // 播放完毕后，就没有了
+                    if (action != ACTION_AUTO) {
+                        if(isPlayer){
+                            player();
+                        }else{
+                            showPrepare();
+                        }
+                    } else {
+                        playerOver();
+                    }
+                } else {
+                    int index = -1;
+                    for (int i = 0, len = list.size(); i < len; i++) {
+                        // 在列表中查找播放歌曲的位置
+                        if (list.get(i).getId() == song.getId()) {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index != -1) {
+                        if (action == ACTION_AUTO || action == ACTION_NEXT) {
+                            // 有下一首
+                            if (index < (list.size() - 1)) {
+                                song = list.get(index + 1);
+                                if(isPlayer){
+                                    player();
+                                }else{
+                                    showPrepare();
+                                }
+                            } else {
+                                if (action == ACTION_AUTO) {
+                                    playerOver();
+                                } else {
+                                    song = list.get(0);
+                                    if(isPlayer){
+                                        player();
+                                    }else{
+                                        showPrepare();
+                                    }
+                                }
+                            }
+                        } else {// 上一首
+                            if (index > 0) {
+                                song = list.get(index - 1);
+                                if(isPlayer){
+                                    player();
+                                }else{
+                                    showPrepare();
+                                }
+                            } else {
+                                if (action == ACTION_AUTO) {
+                                    playerOver();
+                                } else {
+                                    song = list.get(list.size() - 1);
+                                    if(isPlayer){
+                                        player();
+                                    }else{
+                                        showPrepare();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+            case MediaPlayerManager.MODE_RANDOM:// 随机播放
+                if (list.size() == 1) {
+                    if(isPlayer){
+                        player();
+                    }else{
+                        showPrepare();
+                    }
+                } else if (list.size() == 2) {
+                    if (song.getId() == list.get(0).getId()) {// 当前播放歌曲是首位
+                        song = list.get(1);
+                    } else {
+                        song = list.get(0);
+                    }
+                    if(isPlayer){
+                        player();
+                    }else{
+                        showPrepare();
+                    }
+                } else {
+                    if (action == ACTION_AUTO || action == ACTION_NEXT) {
+                        // 下一首随机时防止重复该歌曲
+                        int random_index = -1;
+                        while (random_index == -1) {
+                            random_index = new Random().nextInt(list.size());
+                            if (song.getId() != list.get(random_index).getId()) {
+                                break;
+                            }
+                            random_index = -1;
+                        }
+                        song = list.get(random_index);
+                        randomIds.add(song.getId());
+                    } else {
+                        if (randomIds.size() > 1) {
+                            int len=randomIds.size();
+                            int j=0;
+                            Song s=null;
+                            //查找上一首歌曲，找不到继续上一首...仍是没有找到，那就随机播放一首
+                            for (int i=len-1;i>0;i--) {
+                                s=searchPrevRandomSong(randomIds.get(i - 1));
+                                if(s!=null){
+                                    j=i-1;
+                                    break;
+                                }
+                            }
+                            if(s==null){
+                                randomIds.clear();
+                                song=null;
+                                //随机播放一首
+                                if(list.size()>0){
+                                    int random_index = new Random().nextInt(list.size());
+                                    song=list.get(random_index);
+                                    randomIds.add(song.getId());
+                                }
+                            }else{
+                                //移除上一首所有后面的数据
+                                for (int i = len-1; i >j; i--) {
+                                    randomIds.remove(i);
+                                }
+                                song=s;
+                            }
+                        }
+                    }
+                    if(isPlayer){
+                        player();
+                    }else{
+                        showPrepare();
+                    }
+                }
+                break;
+            case MediaPlayerManager.MODE_SEQUENCE:// 列表循环
+                if (list.size() == 1) {
+                    if(isPlayer){
+                        player();
+                    }else{
+                        showPrepare();
+                    }
+                } else {
+                    int index = -1;
+                    for (int i = 0, len = list.size(); i < len; i++) {
+                        // 在列表中查找播放歌曲的位置
+                        if (list.get(i).getId() == song.getId()) {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index != -1) {
+                        if (action == ACTION_AUTO || action == ACTION_NEXT) {
+                            // 有下一首
+                            if (index < (list.size() - 1)) {
+                                song = list.get(index + 1);
+                            } else {
+                                song = list.get(0);
+                            }
+                            if(isPlayer){
+                                player();
+                            }else{
+                                showPrepare();
+                            }
+                        } else {// 上一首
+                            if (index > 0) {
+                                song = list.get(index - 1);
+                            } else {
+                                song = list.get(list.size() - 1);
+                            }
+                            if(isPlayer){
+                                player();
+                            }else{
+                                showPrepare();
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+    }
+
+
+    /**
+     * 列表播放完毕时
+     * */
+    private void playerOver() {
+        playerState = MediaPlayerManager.STATE_OVER;
+        song = null;
+        currentDuration = 0;
+        Intent it = new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON);
+        it.putExtra("flag", MediaPlayerManager.FLAG_INIT);
+        it.putExtra("currentPosition", 0);
+        it.putExtra("duration", 0);
+        it.putExtra("title", getTitle());
+        it.putExtra("albumPic", getAlbumPic());
+        sendBroadcast(it);
+
+    }
+
+    /**
+     * 播放下一首
+     * */
+    public void nextPlayer() {
+        doPlayer(ACTION_NEXT, true);
+    }
+
+    /**
+     * 播放上一首
+     * */
+    public void previousPlayer() {
+        doPlayer(ACTION_PREVIOUS,true);
+    }
+
+    /**
      * 显示播放信息,发送广播
      */
     private void showPrepare() {
@@ -281,6 +583,19 @@ public class MediaPlayerService extends Service {
         intent.putExtra("duration",getPlayerDuration());
         intent.putExtra("albumPic", song.getAlbum().getPicPath());
         sendBroadcast(intent);
+    }
+
+    /**
+     * 查找上一首随机播放歌曲是否存在
+     * */
+    private Song searchPrevRandomSong(int prevrandomid){
+        for (int i = 0,len=list.size(); i < len; i++) {
+            Song s=list.get(i);
+            if(s.getId()==prevrandomid){
+                return s;
+            }
+        }
+        return null;
     }
 
 
@@ -391,7 +706,156 @@ public class MediaPlayerService extends Service {
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        return super.onStartCommand(intent, flags, startId);
+    public void onStart(Intent intent, int startId) {
+        super.onStart(intent,startId);
+        if(intent.getAction()!=null&&intent.getAction().equals(MediaPlayerManager.SERVICE_ACTION)){
+            int flag=intent.getIntExtra("flag", -1);
+            if(flag==MediaPlayerManager.SERVICE_RESET_PLAYLIST){
+                resetPlayerList();
+            }else if(flag==MediaPlayerManager.SERVICE_MUSIC_PAUSE){
+                if(playerState==MediaPlayerManager.STATE_PLAYER){
+                    pauseOrPlayer();
+                    sendBroadcast(new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON).putExtra("flag", MediaPlayerManager.FLAG_LIST));
+                }
+            }else if(flag==MediaPlayerManager.SERVICE_MUSIC_STOP){
+                //停止音乐
+                stop();
+            }else if(flag==MediaPlayerManager.SERVICE_MUSIC_PLAYERORPAUSE){
+
+                if(isStartUp==null||isStartUp.equals("true")){
+                    isStartUp="false";
+                    new Setting(this, true).setValue(Setting.KEY_ISSTARTUP, "false");
+                }
+                if(playerState==MediaPlayerManager.STATE_NULL){
+                    return;
+                }
+                //顺序列表播放结束
+                if(playerState==MediaPlayerManager.STATE_OVER){
+                    return;
+                }
+                pauseOrPlayer();
+
+            }else if(flag==MediaPlayerManager.SERVICE_MUSIC_NEXT){
+
+                if(isStartUp==null||isStartUp.equals("true")){
+                    isStartUp="false";
+                    new Setting(this, true).setValue(Setting.KEY_ISSTARTUP, "false");
+                }
+                nextPlayer();
+            }else if(flag==MediaPlayerManager.SERVICE_MUSIC_PREV){
+
+                if(isStartUp==null||isStartUp.equals("true")){
+                    isStartUp="false";
+                    new Setting(this, true).setValue(Setting.KEY_ISSTARTUP, "false");
+                }
+                previousPlayer();
+            }
+        }
+    }
+
+    /**
+     * 停止服务时
+     * */
+    public void stop() {
+        // 保存数据[0:歌曲Id 1:已经播放时长 2:播放模式3:播放列表Flag4:播放列表查询参数 5:最近播放的]
+        Setting setting = new Setting(this, true);
+        String[] playerInfos = new String[6];
+        playerInfos[0] = String.valueOf(getSongId());
+        if (playerFlag == MediaPlayerManager.PLAYERFLAG_WEB) {
+            currentDuration = 0;
+        }
+        playerInfos[1] = String.valueOf(currentDuration);
+        playerInfos[2] = String.valueOf(playerMode);
+        playerInfos[3] = String.valueOf(playerFlag);
+        playerInfos[4] = parameter;
+        playerInfos[5] = latelyStr;
+        setting.setPlayerInfo(playerInfos);
+        setting.setValue(Setting.KEY_ISSTARTUP, "true");
+
+        playerState = MediaPlayerManager.STATE_STOP;
+        isRun = false;
+
+        if(mPlayer!=null){
+            if (mPlayer.isPlaying()) {
+                mPlayer.stop();
+            }
+            mPlayer.release();
+        }
+        mPlayer = null;
+        mExecutorService.shutdown();
+
+        //停止服务
+        stopSelf();
+    }
+
+    private class MediaPlayerRunnable implements Runnable {
+        @Override
+        public void run() {
+            try {
+                mSemaphore.acquire();
+                if(song==null){
+                    mSemaphore.release();
+                    return;
+                }
+                // 最近播放列表（保存本地歌曲，不保存网络的）
+                if (playerFlag != MediaPlayerManager.PLAYERFLAG_WEB) {
+//                    addLately();
+                }
+                mPlayer.reset();
+                if (playerFlag == MediaPlayerManager.PLAYERFLAG_WEB) {
+                    prepare(song.getNetUrl());
+                } else {
+                    prepare(song.getFilePath());
+                }
+                // 是否是启动后，第一次播放
+                if (isFirst) {
+                    mPlayer.seekTo(currentDuration);
+                }
+                isFirst = false;
+                mPlayer.start();
+                isRun = true;
+                isDeleteStop=false;
+                isPrepare=false;
+                playerState = MediaPlayerManager.STATE_PLAYER;
+                while (isRun) {
+                    if (playerState == MediaPlayerManager.STATE_PLAYER) {
+                        currentDuration = mPlayer.getCurrentPosition();
+                        sendBroadcast(new Intent(
+                                MediaPlayerManager.BROADCASTRECEVIER_ACTON)
+                                .putExtra("flag",
+                                        MediaPlayerManager.FLAG_CHANGED)
+                                .putExtra("currentPosition", currentDuration)
+                                .putExtra("duration", mPlayer.getDuration()));
+                        Thread.sleep(1000);
+                    }
+                }
+                if (mPlayer != null
+                        && playerState != MediaPlayerManager.STATE_OVER
+                        && playerState != MediaPlayerManager.STATE_STOP) {
+                    sendBroadcast(new Intent(
+                            MediaPlayerManager.BROADCASTRECEVIER_ACTON)
+                            .putExtra("flag", MediaPlayerManager.FLAG_CHANGED)
+                            .putExtra("currentPosition",
+                                    mPlayer.getCurrentPosition())
+                            .putExtra("duration", mPlayer.getDuration()));
+                }
+                if(isPrepare){
+                    sendBroadcast(new Intent(
+                            MediaPlayerManager.BROADCASTRECEVIER_ACTON)
+                            .putExtra("flag",
+                                    MediaPlayerManager.FLAG_CHANGED)
+                            .putExtra("currentPosition", 0)
+                            .putExtra("duration", getPlayerDuration()));
+                }
+
+                currentDuration=0;
+                if(isDeleteStop){
+                    playerOver();
+                }
+                mSemaphore.release();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

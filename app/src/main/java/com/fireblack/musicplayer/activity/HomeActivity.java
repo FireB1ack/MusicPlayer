@@ -15,6 +15,7 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -22,13 +23,16 @@ import android.widget.Toast;
 import com.fireblack.musicplayer.R;
 import com.fireblack.musicplayer.adapter.ArtistItemAdapter;
 import com.fireblack.musicplayer.adapter.SongItemAdapter;
+import com.fireblack.musicplayer.adapter.SongWebAdapter;
 import com.fireblack.musicplayer.custom.FlingGallery;
 import com.fireblack.musicplayer.dao.AlbumDao;
 import com.fireblack.musicplayer.dao.ArtistDao;
 import com.fireblack.musicplayer.dao.PlayerListDao;
 import com.fireblack.musicplayer.dao.SongDao;
+import com.fireblack.musicplayer.entity.Song;
 import com.fireblack.musicplayer.service.MediaPlayerManager;
 import com.fireblack.musicplayer.utils.Common;
+import com.fireblack.musicplayer.utils.XmlUtil;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -62,6 +66,14 @@ public class HomeActivity extends BaseActivity {
     private ListView lv_list_change_content;//ListView
     private Button btn_list_random_music2;//随机播放按钮
 
+    //底部工具栏
+    private ImageButton ibtn_player_albumart;//专辑封面
+    private ImageButton ibtn_player_control;//播放/暂停
+    private TextView tv_player_title;//播放歌曲 歌手-标题
+    private ProgressBar pb_player_progress;//播放进度条
+    private TextView tv_player_currentPosition;//当前播放的进度
+    private TextView tv_player_duration;//歌曲播放时长
+
     private int pageNumber = 0;
 
     private SongDao songDao;
@@ -71,6 +83,7 @@ public class HomeActivity extends BaseActivity {
 
     private SharedPreferences preferences;
     private MediaPlayerManager mediaPlayerManager;
+    private ListView lv_list_web;
 
 
     @Override
@@ -118,6 +131,14 @@ public class HomeActivity extends BaseActivity {
         ibtn_list_content_icon.setOnClickListener(imageButoon_listenner);
         lv_list_change_content.setOnItemClickListener(list_change_content_listener);
 
+        //底部工具栏
+        ibtn_player_albumart=(ImageButton)this.findViewById(R.id.ibtn_player_albumart);
+        ibtn_player_control=(ImageButton)this.findViewById(R.id.ibtn_player_control);
+        tv_player_title=(TextView)this.findViewById(R.id.tv_player_title);
+        pb_player_progress=(ProgressBar)this.findViewById(R.id.pb_player_progress);
+        tv_player_currentPosition=(TextView)this.findViewById(R.id.tv_player_currentPosition);
+        tv_player_duration=(TextView)this.findViewById(R.id.tv_player_duration);
+
         //切换主屏幕内容容器
         fgv_list_main = (FlingGallery) rl_list_main_content
                 .findViewById(R.id.fgv_list_main);
@@ -130,6 +151,10 @@ public class HomeActivity extends BaseActivity {
         initTabItem();
         //初始化本地音乐内容区域
         initListMusicItem();
+
+        //初始化网络音乐
+        lv_list_web = (ListView) list_main_web.findViewById(R.id.lv_list_web);
+        lv_list_web.setAdapter(new SongWebAdapter(HomeActivity.this, XmlUtil.parseWebSong(this)).setItemListener(itemListener));
         //初始化下载管理
         initDownLoad();
 
@@ -154,6 +179,17 @@ public class HomeActivity extends BaseActivity {
     protected void onStart() {
         super.onStart();
         mediaPlayerManager.startAndBindService();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mediaPlayerManager.unbindService();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
     }
 
     /**
@@ -239,7 +275,7 @@ public class HomeActivity extends BaseActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if(requestCode == 1 && resultCode == 1){
-//            mediaPlayerManager.initScanner_SongInfo();
+            mediaPlayerManager.initScanner_SongInfo();
             updateListAdapterData();
         }
     }
@@ -272,6 +308,14 @@ public class HomeActivity extends BaseActivity {
         }
     };
 
+    //网络音乐列表下载项点击事件
+    private SongWebAdapter.ItemListener itemListener = new SongWebAdapter.ItemListener() {
+        @Override
+        public void onDoadLoad(Song song) {
+
+        }
+    };
+
     private AdapterView.OnItemClickListener list_change_content_listener = new AdapterView.OnItemClickListener() {
         @Override
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -288,8 +332,19 @@ public class HomeActivity extends BaseActivity {
             }else if(pageNumber == 9){//下载完成列表
 
             }else if(pageNumber == 1){//全部歌曲列表
-                Log.e("12345",String.valueOf(pageNumber));
                 playerMusicByItem(view, MediaPlayerManager.PLAYERFLAG_ALL, null);
+            }else if(pageNumber == 6){//我最爱听列表
+                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_LIKE,null);
+            }else if(pageNumber == 7){//最近播放列表
+                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_LATELY,null);
+            }else if(pageNumber == 22){//歌手歌曲列表
+                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_ARTIST,condition);
+            }else if(pageNumber == 33){//专辑
+                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_ARTIST,condition);
+            }else if(pageNumber == 44){
+                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_FOLDER,condition);
+            }else if(pageNumber == 55){
+                playerMusicByItem(view,MediaPlayerManager.PLAYERFLAG_PLAYERLIST,condition);
             }
         }
     };
@@ -300,10 +355,13 @@ public class HomeActivity extends BaseActivity {
 //
 //        }
         int songId = Integer.valueOf(((SongItemAdapter.ViewHolder) view.getTag()).tv_song_list_item_bottom.getTag().toString());
-        Log.e("12345", String.valueOf(mediaPlayerManager.getSongId()));
         if(songId == mediaPlayerManager.getSongId()){
-            Log.e("12345",String.valueOf(mediaPlayerManager.getSongId()));
             PlayerOrPause(view);
+        }else {
+            ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_pause);
+            mediaPlayerManager.player(songId, flag, condition);
+            int[] playerInfo=new int[]{songId,mediaPlayerManager.getPlayerState()};
+            ((SongItemAdapter)lv_list_change_content.getAdapter()).setPlayerInfo(playerInfo);
         }
     }
 
@@ -312,18 +370,49 @@ public class HomeActivity extends BaseActivity {
      * 播放或暂停歌曲
      */
     private void PlayerOrPause(View view) {
-//        if(mediaPlayerManager.getPlayerState() == MediaPlayerManager.STATE_NULL){
-//            Toast.makeText(this,"请先添加歌曲",Toast.LENGTH_LONG).show();
-//            return;
-//        }
-//        if(view == null){
-//            //当前列表播放结束
-//            if(mediaPlayerManager.getPlayerState() == MediaPlayerManager.STATE_OVER){
-//                Toast.makeText(this,"当前播放列表已经播放结束",Toast.LENGTH_SHORT).show();
-//                return;
-//            }
-//        }
+        if(mediaPlayerManager.getPlayerState() == MediaPlayerManager.STATE_NULL){
+            Toast.makeText(this,"请先添加歌曲",Toast.LENGTH_LONG).show();
+            return;
+        }
+        if(view == null){
+            //当前列表播放结束
+            if(mediaPlayerManager.getPlayerState() == MediaPlayerManager.STATE_OVER){
+                Toast.makeText(this,"当前播放列表已经播放结束",Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
         mediaPlayerManager.pauseOrPlayer();
+        final int state = mediaPlayerManager.getPlayerState();
+        int itemId = 0;
+        if(state == MediaPlayerManager.STATE_PLAYER || state == MediaPlayerManager.STATE_PREPARE){
+            ibtn_player_control.setBackgroundResource(R.drawable.music_list_item_pause);
+            itemId = R.drawable.music_list_item_player;
+        }else if(state == MediaPlayerManager.STATE_PAUSE){
+            ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_player);
+            itemId = R.drawable.music_list_item_pause;
+        }
+        if(mediaPlayerManager.getPlayerFlag()==MediaPlayerManager.PLAYERFLAG_WEB){
+//            if(v==null){
+//                ((SongItemWebAdapter)lv_list_web.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
+//            }else{
+//                ((SongItemWebAdapter.ViewHolder)v.getTag()).tv_web_list_item_number.setBackgroundResource(itemRsId);
+//            }
+        }else {
+            if(pageNumber == 1 || pageNumber == 6 || pageNumber == 7 || pageNumber == 22 || pageNumber == 33 || pageNumber == 44 || pageNumber == 55){
+                if(view ==null){
+                    ((SongItemAdapter)lv_list_change_content.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
+                }else {
+                    ((SongItemAdapter.ViewHolder)view.getTag()).tv_song_list_item_number.setBackgroundResource(itemId);
+                }
+            }
+//            if(pageNumber==9){
+//                if(v==null){
+//                    ((DownLoadListAdapter)lv_list_change_content.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
+//                }else{
+//                    ((DownLoadListAdapter.ViewHolder)v.getTag()).tv_download_list_item_number.setBackgroundResource(itemRsId);
+//                }
+//            }
+        }
     }
 
     private SongItemAdapter.ItemListener songItemListener = new SongItemAdapter.ItemListener() {

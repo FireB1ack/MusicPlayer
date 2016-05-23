@@ -6,6 +6,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
+import android.util.Log;
 
 import com.fireblack.musicplayer.entity.Album;
 import com.fireblack.musicplayer.entity.Artist;
@@ -498,7 +499,9 @@ public class SongDao {
         while(cursor.moveToNext()){
             song = new Song();
             song.setId(cursor.getInt(cursor.getColumnIndex("_id")));
+            Log.e("12345", cursor.getInt(cursor.getColumnIndex("_id")) + "送ID");
             song.setDisplayName(cursor.getString(cursor.getColumnIndex("displayName")));
+            Log.e("12345", cursor.getString(cursor.getColumnIndex("displayName"))+"songname");
             song.setArtist(new Artist(cursor.getInt(cursor.getColumnIndex("artistId")),
                     cursor.getString(cursor.getColumnIndex("Bname")),
                     cursor.getString(cursor.getColumnIndex("BpicPath"))));
@@ -534,7 +537,7 @@ public class SongDao {
                 "where A._id=?", new String[]{String.valueOf(id)});
         if(cursor.moveToNext()){
             song = new Song();
-            song.setId(cursor.getInt(cursor.getColumnIndex("_id")));
+            song.setId(id);
             song.setDisplayName(cursor.getString(cursor.getColumnIndex("displayName")));
             song.setArtist(new Artist(cursor.getInt(cursor.getColumnIndex("artistId")),
                     cursor.getString(cursor.getColumnIndex("Bname")),
