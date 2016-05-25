@@ -5,13 +5,19 @@ import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -25,10 +31,12 @@ import com.fireblack.musicplayer.adapter.ArtistItemAdapter;
 import com.fireblack.musicplayer.adapter.SongItemAdapter;
 import com.fireblack.musicplayer.adapter.SongWebAdapter;
 import com.fireblack.musicplayer.custom.FlingGallery;
+import com.fireblack.musicplayer.custom.MyDialog;
 import com.fireblack.musicplayer.dao.AlbumDao;
 import com.fireblack.musicplayer.dao.ArtistDao;
 import com.fireblack.musicplayer.dao.PlayerListDao;
 import com.fireblack.musicplayer.dao.SongDao;
+import com.fireblack.musicplayer.entity.PlayerList;
 import com.fireblack.musicplayer.entity.Song;
 import com.fireblack.musicplayer.service.MediaPlayerManager;
 import com.fireblack.musicplayer.utils.Common;
@@ -81,6 +89,8 @@ public class HomeActivity extends BaseActivity {
     private AlbumDao albumDao;
     private PlayerListDao playerListDao;
 
+    private ViewGroup.LayoutParams params;
+    private LayoutInflater inflater;
     private SharedPreferences preferences;
     private MediaPlayerManager mediaPlayerManager;
     private ListView lv_list_web;
@@ -107,6 +117,8 @@ public class HomeActivity extends BaseActivity {
         albumDao = new AlbumDao(this);
         playerListDao = new PlayerListDao(this);
         mediaPlayerManager = new MediaPlayerManager(this);
+        params = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
 
         //导航栏选项卡数组 实例化
         vg_list_tab_item[0] = (ViewGroup) this.findViewById(R.id.list_tab_item_music);
@@ -129,6 +141,7 @@ public class HomeActivity extends BaseActivity {
         lv_list_change_content = (ListView) findViewById(R.id.lv_list_change_content);
         btn_list_random_music2 = (Button) findViewById(R.id.btn_list_random_music2);
         ibtn_list_content_icon.setOnClickListener(imageButoon_listenner);
+        ibtn_list_content_add_icon.setOnClickListener(imageButoon_listenner);
         lv_list_change_content.setOnItemClickListener(list_change_content_listener);
 
         //底部工具栏
@@ -418,14 +431,119 @@ public class HomeActivity extends BaseActivity {
     private SongItemAdapter.ItemListener songItemListener = new SongItemAdapter.ItemListener() {
         @Override
         public void onLikeClick(int id, View view, int position) {
-
+            //排除我最爱听歌曲列表
+            if(pageNumber == 6){
+                songDao.updateByLike(id, 0);
+                //更新
+                ((SongItemAdapter)lv_list_change_content.getAdapter()).deleteItem(position);
+                btn_list_random_music2.setText("(共" + lv_list_change_content.getCount() + "首)随机播放");
+                btn_list_random_music2.setTag(lv_list_change_content.getCount());
+                deleteForResetPlayerList(id,MediaPlayerManager.PLAYERFLAG_LIKE,"");
+                return;
+            }
+            if(view.getTag().equals("1")){
+                view.setTag("0");
+                view.setBackgroundResource(R.drawable.dislike);
+                songDao.updateByLike(id,0);
+            }else {
+                view.setTag("1");
+                view.setBackgroundResource(R.drawable.like);
+                songDao.updateByLike(id,1);
+            }
         }
 
         @Override
         public void onMenuClick(int id, String text, String path, int position) {
-
+            showListSongLoogDialog(id,text,path,position);
         }
     };
+
+    private AdapterView.OnItemLongClickListener longClickListener = new AdapterView.OnItemLongClickListener() {
+        @Override
+        public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+            if(pageNumber == 5){//播放列表长按事件
+                showPlayListLongDialog(view);
+                return true;
+            }
+            return false;
+        }
+    };
+
+    /**
+     * 长按播放列表 弹出对话框
+     */
+    private void showPlayListLongDialog(View view) {
+        final TextView textView = ((ArtistItemAdapter.ViewHolder)view.getTag()).tv_list_item_title;
+        final String text = textView.getText().toString();//列表名称
+        final int plid = Integer.parseInt(textView.getTag().toString());//id
+
+    }
+
+    /**
+     * 创建歌曲列表菜单对话框
+     */
+    private void showListSongLoogDialog(final int id2,String text,final String path,final int parrentposition) {
+        String delete_title = "移除歌曲";
+        if(pageNumber == 9){
+            delete_title = "清楚任务";
+        }
+        String[] menuString = new String[]{"添加到列表","设为铃声",delete_title,"查看详情"};
+        ListView menuList = new ListView(HomeActivity.this);
+        menuList.setCacheColorHint(Color.TRANSPARENT);
+        menuList.setDividerHeight(1);
+        menuList.setAdapter(new ArrayAdapter<String>(HomeActivity.this, R.layout.dialog_menu_item, R.id.text1, menuString));
+        menuList.setLayoutParams(new ViewGroup.LayoutParams(Common.getScreen(HomeActivity.this)[0]/2, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final MyDialog myDialog = new MyDialog.Builder(HomeActivity.this).setTitle(text).setView(menuList).create();
+        myDialog.show();
+
+        menuList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                myDialog.cancel();
+                myDialog.dismiss();
+                if(position == 0){//添加到列表
+                    addPlayerListDialog(id2);
+                }
+            }
+        });
+    }
+
+    /**
+     * 添加到列表对话框
+     */
+    private void addPlayerListDialog(final int id2) {
+    }
+
+    /**
+     * 删除歌曲，重置播放列表
+     */
+    private void deleteForResetPlayerList(int id, int flag, String parameter) {
+        final int state = mediaPlayerManager.getPlayerState();
+        if(state == MediaPlayerManager.STATE_NULL || state == MediaPlayerManager.STATE_OVER){
+            return;
+        }
+        if(mediaPlayerManager.getPlayerFlag() == MediaPlayerManager.PLAYERFLAG_WEB){
+            return;
+        }
+        String s_parameter = mediaPlayerManager.getParameter();//获取当前查询条件
+        if(s_parameter == null){
+            s_parameter="";
+            if(flag == MediaPlayerManager.PLAYERFLAG_ALL || (flag == mediaPlayerManager.getPlayerFlag() && parameter.equals(s_parameter))){
+                //删除'播放列表'，就播放全部歌曲
+                if(id == -1){
+                    mediaPlayerManager.delete(-1);
+                    return;
+                }else {
+                    //若果是当前播放歌曲，就要切换下一首
+                    if (id == mediaPlayerManager.getSongId()){
+                        mediaPlayerManager.delete(id);
+                    }
+                }
+                mediaPlayerManager.resetPlayerList();
+            }
+        }
+    }
 
     private String condition = null;//当前歌曲列表查询条件
     /**
@@ -445,7 +563,7 @@ public class HomeActivity extends BaseActivity {
             if(position == 1){//全部歌曲
                 tv_list_content_title.setText("全部歌曲");
                 List<String[]> data = songDao.searchByAll();
-                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this, data,playerInfo));
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this, data,playerInfo).setItemListener(songItemListener));
                 btn_list_random_music2.setVisibility(View.VISIBLE);
                 btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
                 btn_list_random_music2.setTag(data.size());
@@ -463,19 +581,20 @@ public class HomeActivity extends BaseActivity {
                 lv_list_change_content.setAdapter((new ArtistItemAdapter(HomeActivity.this,data,R.drawable.local_file)));
             }else if(position == 5){//播放列表
                 tv_list_content_title.setText("播放列表");
+                ibtn_list_content_add_icon.setVisibility(View.VISIBLE);
                 List<String[]> data = playerListDao.searchAll();
                 lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this,data,R.drawable.local_custom));
             }else if(position == 6){//我最爱听
                 tv_list_content_title.setText("我最爱听");
                 List<String[]> data = songDao.searchByIsLike();
-                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo).setItemListener(songItemListener));
                 btn_list_random_music2.setVisibility(View.VISIBLE);
                 btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
                 btn_list_random_music2.setTag(data.size());
             }else if(position == 7){//最近播放
                 tv_list_content_title.setText("最近播放");
                 List<String[]> data = songDao.searchByLately(mediaPlayerManager.getLatelyStr());
-                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
+                lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo).setItemListener(songItemListener));
                 btn_list_random_music2.setVisibility(View.VISIBLE);
                 btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
                 btn_list_random_music2.setTag(data.size());
@@ -501,7 +620,7 @@ public class HomeActivity extends BaseActivity {
             }else if(position == 55){//播放列表
                 data = songDao.searchByDisplayerList("#" + condition + "#");
             }
-            lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo));
+            lv_list_change_content.setAdapter(new SongItemAdapter(HomeActivity.this,data,playerInfo).setItemListener(songItemListener));
             btn_list_random_music2.setText("(共" + data.size() + "首)随机播放");
             btn_list_random_music2.setTag(data.size());
             pageNumber = position;
@@ -617,9 +736,71 @@ public class HomeActivity extends BaseActivity {
             if(v.getId() == R.id.ibtn_list_content_icon){
                 rl_list_content.setVisibility(View.GONE);
                 rl_list_main_content.setVisibility(View.VISIBLE);
+            }else if(v.getId() == R.id.ibtn_list_content_add_icon){
+                if(pageNumber == 5){
+                    //添加播放列表，弹出菜单
+                    doPlayList(0,0,null);
+                }
+            }else if(v.getId() == R.id.ibtn_player_control){
+                PlayerOrPause(null);
+            }else if(v.getId() == R.id.ibtn_player_albumart){
+                //进入playerMainActivity
+//                startActivity(new Intent(HomeActivity.this,));
             }
         }
     };
+
+    /**
+     * 添加或更新播放列表
+     */
+    private void doPlayList(final int flag, final int id, String text) {
+        String titleMsg = null;
+        final EditText et_newPlayList = new EditText(HomeActivity.this);
+        et_newPlayList.setLayoutParams(params);
+        et_newPlayList.setTextSize(15);
+        et_newPlayList.setBackgroundColor(Color.WHITE);
+        et_newPlayList.setGravity(Gravity.CENTER);
+        if(flag == 0){
+            titleMsg = "创建";
+            et_newPlayList.setHint("请输入播放列表的名称");
+        }else if(flag == 1){
+            titleMsg = " 更新";
+            et_newPlayList.setText(text);
+            et_newPlayList.selectAll();
+        }
+        final String titleMsg2 = titleMsg;
+        new MyDialog.Builder(HomeActivity.this).setTitle(titleMsg+"播放列表")
+                .setView(et_newPlayList,5,10,5,10).setPositiveButton("确定", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String content =  et_newPlayList.getText().toString().trim();
+                if(!TextUtils.isEmpty(content)){
+                    if(playerListDao.isExists(content)){
+                        Toast.makeText(HomeActivity.this,"此名称已经存在",Toast.LENGTH_SHORT).show();
+                    }else {
+                        PlayerList playerList = new PlayerList();
+                        playerList.setName(content);
+
+                        int rowId = -1;
+                        if(flag == 0){//创建
+                            rowId = (int) playerListDao.add(playerList);
+                        }else if(flag == 1){//更新列表
+                            playerList.setId(id);
+                            rowId = playerListDao.update(playerList);
+                        }
+                        if(rowId>0){//判断是否成功
+                            Toast.makeText(HomeActivity.this,titleMsg2 + "成功",Toast.LENGTH_SHORT).show();
+                            lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this, playerListDao.searchAll(), R.drawable.local_custom));
+                            dialog.cancel();
+                            dialog.dismiss();
+                        }else {
+                            Toast.makeText(HomeActivity.this,titleMsg2 + "失败",Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+            }
+        }).setNegativeButton("取消",null).create().show();
+    }
 
 }
 

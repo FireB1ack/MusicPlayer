@@ -1,5 +1,10 @@
 package com.fireblack.musicplayer.utils;
 
+import android.content.Context;
+import android.util.DisplayMetrics;
+import android.view.Display;
+import android.view.WindowManager;
+
 import com.fireblack.musicplayer.R;
 
 import java.io.File;
@@ -119,5 +124,19 @@ public class Common {
             return str.substring(i+1).toUpperCase();
         }
         return str;
+    }
+
+    /**
+     *  获取屏幕的大小
+     *  0:宽度  1：高度
+     */
+    public static int[] getScreen(Context context){
+        WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        Display display = windowManager.getDefaultDisplay();
+        DisplayMetrics outMetrics = new DisplayMetrics();
+        display.getMetrics(outMetrics);
+        int[] s = new int[]{(int)(outMetrics.density * outMetrics.widthPixels),
+                (int)(outMetrics.density * outMetrics.heightPixels)};
+        return s;
     }
 }

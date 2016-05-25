@@ -146,7 +146,7 @@ public class MediaPlayerManager {
      * */
     public void player(int id,int playerFlag,String parameter){
         if(mMediaPlayerService!=null){
-            mMediaPlayerService.player(id,playerFlag,parameter);
+            mMediaPlayerService.player(id, playerFlag, parameter);
         }
     }
 
@@ -170,6 +170,24 @@ public class MediaPlayerManager {
         return -1;
     }
 
+    /**
+     * 获取当前查询跳纤
+     */
+    public String getParameter(){
+        if(mMediaPlayerService != null){
+            return mMediaPlayerService.getParameter();
+        }
+        return null;
+    }
+
+    /**
+     * 重置播放歌曲列表
+     * */
+    public void resetPlayerList(){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.resetPlayerList();
+        }
+    }
 
     /**
      * 获取当前播放Flag
@@ -179,5 +197,14 @@ public class MediaPlayerManager {
             return mMediaPlayerService.getPlayerFlag();
         }
         return -1;
+    }
+
+    /**
+     * 删除歌曲
+     * */
+    public void delete(int songId){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.delete(songId);
+        }
     }
 }

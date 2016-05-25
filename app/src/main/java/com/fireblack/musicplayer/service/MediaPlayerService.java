@@ -569,7 +569,64 @@ public class MediaPlayerService extends Service {
      * 播放上一首
      * */
     public void previousPlayer() {
-        doPlayer(ACTION_PREVIOUS,true);
+        doPlayer(ACTION_PREVIOUS, true);
+    }
+
+    /**
+     * 删除歌曲
+     */
+    public void delete(int songId){
+        isFirst = false;
+        if(songId == -1){
+            isPrepare = true;
+            isRun = false;
+            if(mPlayer.isPlaying()){
+                mPlayer.stop();
+            }
+            playerFlag = MediaPlayerManager.PLAYERFLAG_ALL;
+            playerState = MediaPlayerManager.STATE_PAUSE;
+            parameter = "";
+            resetPlayerList();
+            song = list.size()>0?list.get(0):null;
+            currentDuration = 0;
+            showPrepare();
+            return;
+        }//单曲模式下，删除当前歌曲
+//        if(playerMode==MediaPlayerManager.MODE_CIRCLEONE){
+//            isDeleteStop=true;
+//            isRun=false;
+//            if (mPlayer.isPlaying()) {
+//                mPlayer.stop();
+//            }
+//        }else{
+//            //只有一首歌曲
+//            if(list.size()<=1){
+//                isDeleteStop=true;
+//                isRun=false;
+//                if (mPlayer.isPlaying()) {
+//                    mPlayer.stop();
+//                }
+//            }else{
+//                //下一首
+//                if(playerState==MediaPlayerManager.STATE_PAUSE){
+//                    isPrepare=true;
+//                    isRun = false;
+//                    if (mPlayer.isPlaying()) {
+//                        mPlayer.stop();
+//                    }
+//                    doPlayer(ACTION_NEXT, false);
+//                }else{
+//                    nextPlayer();
+//                }
+//                //在列表中删除
+//                for(int i=0,len=list.size();i<len;i++){
+//                    if(songId==list.get(i).getId()){
+//                        list.remove(i);
+//                        break;
+//                    }
+//                }
+//            }
+//        }
     }
 
     /**
@@ -653,6 +710,13 @@ public class MediaPlayerService extends Service {
             return -1;
         }
         return song.getId();
+    }
+
+    /**
+     * 获取当前查询列表条件
+     * */
+    public String getParameter(){
+        return parameter;
     }
 
     /**
