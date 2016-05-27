@@ -251,6 +251,60 @@ public class SongDao {
     }
 
     /**
+     * 从播放列表中删除某一首歌曲
+     */
+    public int deleteByPlayerList(int id,int playerListId){
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        int rs = 0;
+        Cursor cursor = db.rawQuery("select playerList from song where _id=?", new String[]{String.valueOf(id)});
+        String temp = null;
+        if(cursor.moveToNext()){
+            temp = cursor.getString(0);
+        }
+        cursor.close();
+        if(temp != null){
+            ContentValues values = new ContentValues();
+            values.put("playerList",temp.replace("#"+playerListId+"#",""));
+            rs = db.update("song",values,"_id=?",new String[]{String.valueOf(id)});
+        }
+        db.close();
+        return rs;
+    }
+
+    /**
+     * 删除
+     */
+    public int delete(Integer... ids){
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        StringBuilder sb = new StringBuilder();
+        String[] str = new String[ids.length];
+        for (int i=0;i<ids.length;i++){
+            sb.append("?,");
+            str[i] = String.valueOf(ids[i]);
+            Cursor cursor = db.query("song", new String[]{"artistId", "albumId"}, "_id=?", new String[]{str[i]}, null, null, null);
+            if(cursor.moveToNext()){
+                final int artistId = cursor.getInt(0);
+                final int albumId = cursor.getInt(1);
+                //删除歌手
+                Cursor artist_cr = db.rawQuery("select count(*) from song where artistId=?", new String[]{String.valueOf(artistId)});
+                if(artist_cr.getCount() == 1){
+                    db.delete("artist","_id=?",new String[]{String.valueOf(artistId)});
+                }
+                //删除专辑
+                Cursor album_cr = db.rawQuery("select count(*) from song where albumId=?", new String[]{String.valueOf(albumId)});
+                if(album_cr.getCount() == 1){
+                    db.delete("album","_id=?",new String[]{String.valueOf(albumId)});
+                }
+            }
+            cursor.close();
+        }
+        sb.deleteCharAt(sb.length()-1);
+        int rs = db.delete("song","_id in("+sb.toString()+")",str);
+        db.close();
+        return rs;
+    }
+
+    /**
      * @param latelyStr
      * 根据最近播放 字符串来查询
      */

@@ -1,6 +1,10 @@
 package com.fireblack.musicplayer.utils;
 
+import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.Context;
+import android.database.Cursor;
+import android.provider.MediaStore;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.WindowManager;
@@ -127,6 +131,32 @@ public class Common {
     }
 
     /**
+     * Byte--MB
+     */
+    public static String getByteToMB(int size){
+        float mb =size/1024f/1024f;
+        return String.format("%.2f",mb);
+    }
+
+    /**
+     * Type--KB
+     */
+    public static String getByteToKB(int size){
+        float kb = size/1024f;
+        return String.format("%.2f",kb);
+    }
+
+    public static String formatSecondTime(int duration){
+        if(duration == 0){
+            return "00:00";
+        }
+        duration = duration/1000;
+        int m = duration/60%60;
+        int s = duration%60;
+        return (m>9?m:"0"+m)+":"+(s>9?s:"0"+s);
+    }
+
+    /**
      *  获取屏幕的大小
      *  0:宽度  1：高度
      */
@@ -138,5 +168,28 @@ public class Common {
         int[] s = new int[]{(int)(outMetrics.density * outMetrics.widthPixels),
                 (int)(outMetrics.density * outMetrics.heightPixels)};
         return s;
+    }
+
+    /**
+     * 删除文件并且删除媒体库中数据
+     */
+    public static boolean deleteFile(Context context,String filePath){
+        new File(filePath).delete();
+        int id = -1;
+        ContentResolver resolver = context.getContentResolver();
+        Cursor cursor = resolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, new String[]{MediaStore.Audio.Media._ID},
+                MediaStore.Audio.Media.DATA + "=?", new String[]{filePath}, null);
+        if(cursor.moveToNext()){
+            id = cursor.getInt(0);
+        }
+        cursor.close();
+        if(id != -1){
+            return resolver.delete(ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,id),null,null)>0;
+        }
+        return false;
+    }
+
+    public static boolean isExistFile(String filePath){
+        return new File(filePath).exists();
     }
 }

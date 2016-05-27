@@ -2,11 +2,18 @@ package com.fireblack.musicplayer.activity;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.ContentValues;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.media.MediaPlayer;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -17,17 +24,21 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.ProgressBar;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.fireblack.musicplayer.R;
 import com.fireblack.musicplayer.adapter.ArtistItemAdapter;
+import com.fireblack.musicplayer.adapter.DownLoadListAdapter;
 import com.fireblack.musicplayer.adapter.SongItemAdapter;
 import com.fireblack.musicplayer.adapter.SongWebAdapter;
 import com.fireblack.musicplayer.custom.FlingGallery;
@@ -42,6 +53,9 @@ import com.fireblack.musicplayer.service.MediaPlayerManager;
 import com.fireblack.musicplayer.utils.Common;
 import com.fireblack.musicplayer.utils.XmlUtil;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -143,6 +157,7 @@ public class HomeActivity extends BaseActivity {
         ibtn_list_content_icon.setOnClickListener(imageButoon_listenner);
         ibtn_list_content_add_icon.setOnClickListener(imageButoon_listenner);
         lv_list_change_content.setOnItemClickListener(list_change_content_listener);
+        lv_list_change_content.setOnItemLongClickListener(longClickListener);
 
         //底部工具栏
         ibtn_player_albumart=(ImageButton)this.findViewById(R.id.ibtn_player_albumart);
@@ -462,8 +477,20 @@ public class HomeActivity extends BaseActivity {
         @Override
         public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
             if(pageNumber == 5){//播放列表长按事件
-                showPlayListLongDialog(view);
-                return true;
+                if(position != 0) {
+                    showPlayListLongDialog(view);
+                    return true;
+                }
+            }else {
+                if(!(pageNumber==2||pageNumber==3||pageNumber==4||pageNumber==5||pageNumber==8||pageNumber==9)){
+                    final SongItemAdapter.ViewHolder viewHolder = (SongItemAdapter.ViewHolder) view.getTag();
+                    final String path = viewHolder.tv_song_list_item_top.getTag().toString();
+                    final int sid = Integer.parseInt(viewHolder.tv_song_list_item_bottom.getTag().toString());
+                    final String text = viewHolder.tv_song_list_item_top.getText().toString();
+
+                    showListSongLoogDialog(sid,text,path,position);
+
+                }
             }
             return false;
         }
@@ -476,6 +503,44 @@ public class HomeActivity extends BaseActivity {
         final TextView textView = ((ArtistItemAdapter.ViewHolder)view.getTag()).tv_list_item_title;
         final String text = textView.getText().toString();//列表名称
         final int plid = Integer.parseInt(textView.getTag().toString());//id
+        String[] menuString = new String[]{"重命名","删除"};
+        ListView menuList = new ListView(HomeActivity.this);
+        menuList.setCacheColorHint(Color.TRANSPARENT);
+        menuList.setDividerHeight(1);
+        menuList.setAdapter(new ArrayAdapter<String>(HomeActivity.this, R.layout.dialog_menu_item, R.id.text1, menuString));
+        menuList.setLayoutParams(new ViewGroup.LayoutParams(Common.getScreen(HomeActivity.this)[0] / 2, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final MyDialog myDialog =new MyDialog.Builder(HomeActivity.this).setTitle(text).setView(menuList).create();
+        myDialog.show();
+        menuList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (position == 0) {//重命名
+                    myDialog.cancel();
+                    myDialog.dismiss();
+                    doPlayList(1, plid, text);
+                } else if (position == 1) {//删除
+                    myDialog.cancel();
+                    myDialog.dismiss();
+                    new MyDialog.Builder(HomeActivity.this).setTitle("删除提示").setMessage("是否要删除这个列表")
+                            .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    if (playerListDao.delete(plid) > 0) {
+                                        Toast.makeText(HomeActivity.this, "删除成功", Toast.LENGTH_SHORT).show();
+                                        lv_list_change_content.setAdapter(new ArtistItemAdapter(HomeActivity.this, playerListDao.searchAll(), R.drawable.local_custom));
+                                        //更新正在播放列表
+                                        deleteForResetPlayerList(-1, MediaPlayerManager.PLAYERFLAG_PLAYERLIST, String.valueOf(plid));
+                                    } else {
+                                        Toast.makeText(HomeActivity.this, "删除失败", Toast.LENGTH_SHORT).show();
+                                    }
+                                    dialog.cancel();
+                                    dialog.dismiss();
+                                }
+                            }).setNegativeButton("取消", null).create().show();
+                }
+            }
+        });
 
     }
 
@@ -492,7 +557,7 @@ public class HomeActivity extends BaseActivity {
         menuList.setCacheColorHint(Color.TRANSPARENT);
         menuList.setDividerHeight(1);
         menuList.setAdapter(new ArrayAdapter<String>(HomeActivity.this, R.layout.dialog_menu_item, R.id.text1, menuString));
-        menuList.setLayoutParams(new ViewGroup.LayoutParams(Common.getScreen(HomeActivity.this)[0]/2, ViewGroup.LayoutParams.WRAP_CONTENT));
+        menuList.setLayoutParams(new ViewGroup.LayoutParams(Common.getScreen(HomeActivity.this)[0] / 2, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         final MyDialog myDialog = new MyDialog.Builder(HomeActivity.this).setTitle(text).setView(menuList).create();
         myDialog.show();
@@ -502,17 +567,262 @@ public class HomeActivity extends BaseActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 myDialog.cancel();
                 myDialog.dismiss();
-                if(position == 0){//添加到列表
+                if (position == 0) {//添加到列表
                     addPlayerListDialog(id2);
+                } else if (position == 1) {//设为铃声
+                    createRingDialog(path);
+                } else if (position == 2) {//移除歌曲
+                    createDeleteSongDialog(id2, path, parrentposition, true);
+                }else if(position == 3){//歌曲详情
+                    createSongDetailDialog(id2);
                 }
             }
         });
     }
 
     /**
+     * 歌曲详情对话框
+     */
+    private void createSongDetailDialog(int id) {
+        Song song = songDao.searchById(id);
+        File fiel= new File(song.getFilePath());
+        if(!fiel.exists()){//歌曲不存在
+            Toast.makeText(HomeActivity.this,"歌曲已经不存在，请删除歌曲",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if(song.getSize() == -1){
+            song.setSize((int) fiel.length());
+            songDao.updateBySize(id,song.getSize());
+        }
+        //表示当时扫描时，是在媒体库中不存在的歌曲
+        int duration = song.getDurationTime();
+        if(duration == -1){
+            //获取播放时长
+            MediaPlayer mp = new MediaPlayer();
+            try {
+                mp.setDataSource(song.getFilePath());
+                mp.prepare();
+                duration = mp.getDuration();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }finally {
+                mp.release();
+                mp = null;
+            }
+            if(duration!=-1){
+                song.setDurationTime(duration);
+                //更新
+                songDao.updateByDuration(id,duration);
+            }
+        }
+
+        View view = inflater.inflate(R.layout.song_detail,null);
+        view.setLayoutParams(new ViewGroup.LayoutParams(Common.getScreen(HomeActivity.this)[0]/2, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        ((TextView)view.findViewById(R.id.tv_song_title)).setText(song.getName());
+        ((TextView)view.findViewById(R.id.tv_song_artist)).setText(song.getArtist().getName());
+        ((TextView)view.findViewById(R.id.tv_song_album)).setText(song.getAlbum().getName());
+        ((TextView)view.findViewById(R.id.tv_song_duration)).setText(Common.formatSecondTime(duration));
+        ((TextView)view.findViewById(R.id.tv_song_filePath)).setText(song.getFilePath());
+        ((TextView)view.findViewById(R.id.tv_song_format)).setText(Common.getSuffix(song.getDisplayName()));
+        ((TextView)view.findViewById(R.id.tv_song_size)).setText(Common.getByteToMB(song.getSize())+"MB");
+
+        new MyDialog.Builder(HomeActivity.this).setTitle("歌曲详细信息").setView(view).setNeutralButton("确定",null).create().show();
+    }
+
+    /**
+     * 移除歌曲对话框
+     * flag:是否本地歌曲列表删除
+     */
+    private void createDeleteSongDialog(final int id2, final String filePath, final int position, final boolean flag) {
+        String title = "移除歌曲";
+        if(pageNumber == 9){
+            title = "清除任务";
+        }
+        final CheckBox checkBox = new CheckBox(HomeActivity.this);
+        final String t_title = title;
+        checkBox.setLayoutParams(params);
+        checkBox.setTextColor(Color.WHITE);
+        checkBox.setTextSize(17);
+        checkBox.setText("同时删除本地文件");
+
+        new MyDialog.Builder(HomeActivity.this).setTitle(title).setView(checkBox)
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if(checkBox.isChecked()){
+                            Common.deleteFile(HomeActivity.this,filePath);
+                        }
+                        //只从播放列表中删除
+                        int rs = 0;
+                        if(!checkBox.isChecked() && pageNumber ==55){
+                            rs = songDao.deleteByPlayerList(id2,Integer.valueOf(condition));
+                        }else {
+                            //没有选中并且是下载完成删除
+                            if(!checkBox.isChecked() && !flag){
+//                                rs = songDao.updateByDownLoadState(id2);
+                            }else {
+                                rs = songDao.delete(id2);
+                            }
+                        }
+                        if(rs>0){
+                            Toast.makeText(HomeActivity.this,t_title+"成功",Toast.LENGTH_SHORT).show();
+                            dialog.cancel();
+                            dialog.dismiss();
+
+                            //更新歌曲列表
+                            if(flag){
+                                ((SongItemAdapter)lv_list_change_content.getAdapter()).deleteItem(position);
+                            }else {
+//                                ((DownLoadListAdapter)lv_list_change_content.getAdapter()).deleteItem(position);
+                            }
+                            if(pageNumber ==1){
+                                deleteForResetPlayerList(id2,MediaPlayerManager.PLAYERFLAG_ALL,"");
+                            }else if(pageNumber ==6){
+                                deleteForResetPlayerList(id2,MediaPlayerManager.PLAYERFLAG_LIKE,"");
+                            }else if(pageNumber == 7){
+                                deleteForResetPlayerList(id2,MediaPlayerManager.PLAYERFLAG_LATELY,"");
+                            }else if(pageNumber == 9){
+                                deleteForResetPlayerList(id2,MediaPlayerManager.PLAYERFLAG_DOWNLOAD,"");
+                            }else if(pageNumber == 22){
+                                deleteForResetPlayerList(id2,MediaPlayerManager.PLAYERFLAG_ARTIST,"");
+                            }else if(pageNumber == 33){
+                                deleteForResetPlayerList(id2, MediaPlayerManager.PLAYERFLAG_ALBUM,"");
+                            }else if(pageNumber == 44){
+                                deleteForResetPlayerList(id2,MediaPlayerManager.PLAYERFLAG_FOLDER,"");
+                            }else if(pageNumber == 55){
+                                deleteForResetPlayerList(id2,MediaPlayerManager.PLAYERFLAG_PLAYERLIST,"");
+                            }
+                            btn_list_random_music2.setText("(共"+lv_list_change_content.getCount()+"首)播放");
+                            btn_list_random_music2.setTag(lv_list_change_content.getCount());
+                        }else {
+                            Toast.makeText(HomeActivity.this,t_title+"失败",Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }).setNegativeButton("取消",null).create().show();
+
+    }
+
+    /**
+     * 设置铃声对话框
+     */
+    private void createRingDialog(final String filePath) {
+        RadioGroup rg_ring = new RadioGroup(HomeActivity.this);
+        rg_ring.setLayoutParams(params);
+        final RadioButton rbtn_ringPhone = new RadioButton(HomeActivity.this);
+        rbtn_ringPhone.setText("来电铃声");
+        rbtn_ringPhone.setTextColor(Color.WHITE);
+        rbtn_ringPhone.setTextSize(17);
+        rg_ring.addView(rbtn_ringPhone, params);
+        final RadioButton rbtn_alarms = new RadioButton(HomeActivity.this);
+        rbtn_alarms.setText("闹钟铃声");
+        rbtn_alarms.setTextColor(Color.WHITE);
+        rbtn_alarms.setTextSize(17);
+        rg_ring.addView(rbtn_alarms, params);
+        final RadioButton rbtn_notification = new RadioButton(HomeActivity.this);
+        rbtn_notification.setText("通知铃声");
+        rbtn_notification.setTextColor(Color.WHITE);
+        rbtn_notification.setTextSize(17);
+        rg_ring.addView(rbtn_notification, params);
+        final RadioButton rbtn_all = new RadioButton(HomeActivity.this);
+        rbtn_all.setText("全部铃声");
+        rbtn_all.setTextColor(Color.WHITE);
+        rbtn_all.setTextSize(17);
+        rg_ring.addView(rbtn_all, params);
+
+        new MyDialog.Builder(HomeActivity.this).setTitle("设置铃声").setView(rg_ring)
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        ContentValues valus = new ContentValues();
+                        int type = -1;
+                        if(rbtn_ringPhone.isChecked()){
+                            type = RingtoneManager.TYPE_RINGTONE;
+                            valus.put(MediaStore.Audio.Media.IS_RINGTONE,true);
+                        }else if(rbtn_alarms.isChecked()){
+                            type = RingtoneManager.TYPE_ALARM;
+                            valus.put(MediaStore.Audio.Media.IS_ALARM,true);
+                        }else if(rbtn_notification.isChecked()){
+                            type = RingtoneManager.TYPE_NOTIFICATION;
+                            valus.put(MediaStore.Audio.Media.IS_NOTIFICATION,true);
+                        }else if(rbtn_all.isChecked()){
+                            type = RingtoneManager.TYPE_ALL;
+                            valus.put(MediaStore.Audio.Media.IS_RINGTONE,true);
+                            valus.put(MediaStore.Audio.Media.IS_ALARM,true);
+                            valus.put(MediaStore.Audio.Media.IS_NOTIFICATION,true);
+                        }
+                        if(type == -1){
+                            Toast.makeText(HomeActivity.this,"请选择铃声类型",Toast.LENGTH_SHORT).show();
+                        }else {
+                            Uri uri = MediaStore.Audio.Media.getContentUriForPath(filePath);
+                            Uri newUri = null;
+                            Cursor cursor = getContentResolver().query(uri, null, MediaStore.MediaColumns.DATA + "=?", new String[]{filePath}, null);
+                            //查询在媒体库中存在的
+                            if(cursor.getCount()>0 && cursor.moveToNext()){//存在
+                                String _id = cursor.getString(0);
+                                //更新媒体库
+                                getContentResolver().update(uri,valus,MediaStore.MediaColumns.DATA+"=?",new String[]{filePath});
+                                newUri = Uri.withAppendedPath(uri,_id);
+                            }else {//不存在  添加
+                                valus.put(MediaStore.MediaColumns.DATA,filePath);
+                                newUri = getContentResolver().insert(uri,valus);
+                            }
+                            try {
+                                RingtoneManager.setActualDefaultRingtoneUri(HomeActivity.this,type,newUri);
+                                Toast.makeText(HomeActivity.this,"铃声设置成功",Toast.LENGTH_SHORT).show();
+                            }catch (Exception e){
+                                Toast.makeText(HomeActivity.this,"铃声设置失败",Toast.LENGTH_SHORT).show();
+                            }
+                            dialog.cancel();
+                            dialog.dismiss();
+                        }
+                    }
+                }).setNegativeButton("取消", null).create().show();
+
+    }
+
+    /**
      * 添加到列表对话框
      */
     private void addPlayerListDialog(final int id2) {
+        List<String[]> list = playerListDao.searchAll();
+        RadioGroup radioGroup = new RadioGroup(HomeActivity.this);
+        radioGroup.setLayoutParams(params);
+        radioGroup.setBackgroundColor(Color.TRANSPARENT);
+        final List<RadioButton> rbtns = new ArrayList<RadioButton>();
+
+        for(int i =0; i<list.size();i++){
+            String[] str = list.get(i);
+            RadioButton radioButton = new RadioButton(HomeActivity.this);
+            radioButton.setTextColor(Color.WHITE);
+            radioButton.setTextSize(17);
+            radioButton.setText(str[1]);
+            radioButton.setTag(str[0]);
+            radioGroup.addView(radioButton,params);
+            rbtns.add(radioButton);
+        }
+
+        new MyDialog.Builder(HomeActivity.this).setTitle("播放列表").setView(radioGroup)
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.cancel();
+                        dialog.dismiss();
+                        int index = -1;
+                        for(int i = 0;i<rbtns.size();i++){
+                            if(rbtns.get(i).isChecked()){
+                                index = i;
+                                break;
+                            }
+                        }
+                        if(index != -1){
+                            songDao.updateByPlayerList(id2,Integer.valueOf(rbtns.get(index).getTag().toString()));
+                            Toast.makeText(HomeActivity.this, "添加成功", Toast.LENGTH_SHORT).show();
+                        }else {
+                            Toast.makeText(HomeActivity.this, "请选择要添加到的播放列表", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }).setNegativeButton("取消",null).create().show();
     }
 
     /**
