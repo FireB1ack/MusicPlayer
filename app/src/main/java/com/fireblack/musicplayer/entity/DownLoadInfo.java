@@ -20,7 +20,15 @@ public class DownLoadInfo {
     private int completeSize;//下载进度
     private int state;//下载状态
     private int threadCount;//运行时活动的线程数量
-    private List<Thread> threadInfos;//多线程信息
+    private List<ThreadInfo> threadInfos;//多线程信息
+
+    public List<ThreadInfo> getThreadInfos() {
+        return threadInfos;
+    }
+
+    public void setThreadInfos(List<ThreadInfo> threadInfos) {
+        this.threadInfos = threadInfos;
+    }
 
     public DownLoadInfo() {
     }
@@ -121,13 +129,6 @@ public class DownLoadInfo {
         this.threadCount = threadCount;
     }
 
-    public List<Thread> getThreadInfos() {
-        return threadInfos;
-    }
-
-    public void setThreadInfos(List<Thread> threadInfos) {
-        this.threadInfos = threadInfos;
-    }
 
     public String getUrl() {
         return url;

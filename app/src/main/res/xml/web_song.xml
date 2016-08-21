@@ -6,7 +6,7 @@
         <album>意外</album>
         <displayName>丑八怪.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/丑八怪.mp3</netUrl>
+        <netUrl>http://10.80.33.115:8080/丑八怪.mp3</netUrl>
         <durationTime>248000</durationTime>
         <size>10247892</size>
     </song>
@@ -16,7 +16,7 @@
         <album>匆匆那年</album>
         <displayName>匆匆那年.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/匆匆那年.mp3</netUrl>
+        <netUrl>http://10.80.33.115:8080/匆匆那年.mp3</netUrl>
         <durationTime>241000</durationTime>
         <size>9758389</size>
     </song>
@@ -26,7 +26,7 @@
         <album>梁咏琪同名专辑</album>
         <displayName>胆小鬼.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/胆小鬼.mp3</netUrl>
+        <netUrl>http://10.80.33.115:8080/胆小鬼.mp3</netUrl>
         <durationTime>257000</durationTime>
         <size>10991466</size>
     </song>
@@ -36,7 +36,7 @@
         <album>Bad Romance</album>
         <displayName>Bad Romance.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/Bad Romance.mp3</netUrl>
+        <netUrl>http://192.168.1.109:8080/Bad Romance.mp3</netUrl>
         <durationTime>266000</durationTime>
         <size>10826917</size>
     </song>
@@ -46,7 +46,7 @@
         <album>Dreams</album>
         <displayName>Dreams.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/Dreams.mp3</netUrl>
+        <netUrl>http://192.168.1.109:8080/Dreams.mp3</netUrl>
         <durationTime>219000</durationTime>
         <size>8882164</size>
     </song>
@@ -56,7 +56,7 @@
         <album>我是歌手第三季 第3期</album>
         <displayName>模特.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/模特.mp3</netUrl>
+        <netUrl>http://192.168.1.109:8080/模特.mp3</netUrl>
         <durationTime>292000</durationTime>
         <size>11783085</size>
     </song>
@@ -66,7 +66,7 @@
         <album>默</album>
         <displayName>默.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/默.mp3</netUrl>
+        <netUrl>http://192.168.1.109:8080/默.mp3</netUrl>
         <durationTime>325000</durationTime>
         <size>13147406</size>
     </song>
@@ -76,7 +76,7 @@
         <album>海龟先生</album>
         <displayName>男孩别哭.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/男孩别哭.mp3</netUrl>
+        <netUrl>http://192.168.1.109:8080/男孩别哭.mp3</netUrl>
         <durationTime>306000</durationTime>
         <size>12504587</size>
     </song>
@@ -86,7 +86,7 @@
         <album>再次寻找周杰伦</album>
         <displayName>晴天.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/晴天.mp3</netUrl>
+        <netUrl>http://192.168.1.109:8080/晴天.mp3</netUrl>
         <durationTime>286000</durationTime>
         <size>11539271</size>
     </song>
@@ -96,7 +96,7 @@
         <album>Binary</album>
         <displayName>喜帖街.mp3</displayName>
         <mimeType>audio/mpeg</mimeType>
-        <netUrl>http://192.168.1.107:8080/喜帖街.mp3</netUrl>
+        <netUrl>http://192.168.1.109:8080/喜帖街.mp3</netUrl>
         <durationTime>21100</durationTime>
         <size>8813304</size>
     </song>

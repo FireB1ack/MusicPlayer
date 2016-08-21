@@ -17,4 +17,15 @@
     <string name="btn_scan_bottom_right">添加目录</string>
 
     <string name="btn_list_random_music">随机播放</string>
+
+    <string name="skinsetting_title">皮肤设置</string>
+    <string name="systemsetting_title">系统设置</string>
+    <string name="about_title">关于作者</string>
+    <string name="exit_title">退出</string>
+    <string name="brightness_title">正常模式</string>
+    <string name="darkness_title">夜间模式</string>
+    <string name="sleep_title">定时关闭</string>
+
+    <string name="about_content">creat by Chenghao</string>
+
 </resources>

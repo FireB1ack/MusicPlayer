@@ -1,12 +1,19 @@
 package com.fireblack.musicplayer.activity;
 
+import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.media.MediaPlayer;
@@ -15,6 +22,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.TextUtils;
+import android.text.method.DigitsKeyListener;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -39,16 +47,23 @@ import android.widget.Toast;
 import com.fireblack.musicplayer.R;
 import com.fireblack.musicplayer.adapter.ArtistItemAdapter;
 import com.fireblack.musicplayer.adapter.DownLoadListAdapter;
+import com.fireblack.musicplayer.adapter.DownLoadingListAdapter;
+import com.fireblack.musicplayer.adapter.MenuAdapter;
 import com.fireblack.musicplayer.adapter.SongItemAdapter;
 import com.fireblack.musicplayer.adapter.SongWebAdapter;
 import com.fireblack.musicplayer.custom.FlingGallery;
 import com.fireblack.musicplayer.custom.MyDialog;
+import com.fireblack.musicplayer.custom.Setting;
+import com.fireblack.musicplayer.custom.XfMenu;
 import com.fireblack.musicplayer.dao.AlbumDao;
 import com.fireblack.musicplayer.dao.ArtistDao;
+import com.fireblack.musicplayer.dao.DownLoadInfoDao;
 import com.fireblack.musicplayer.dao.PlayerListDao;
 import com.fireblack.musicplayer.dao.SongDao;
 import com.fireblack.musicplayer.entity.PlayerList;
 import com.fireblack.musicplayer.entity.Song;
+import com.fireblack.musicplayer.receiver.AutoShutdownRecevier;
+import com.fireblack.musicplayer.service.DownLoadManager;
 import com.fireblack.musicplayer.service.MediaPlayerManager;
 import com.fireblack.musicplayer.utils.Common;
 import com.fireblack.musicplayer.utils.XmlUtil;
@@ -102,12 +117,17 @@ public class HomeActivity extends BaseActivity {
     private ArtistDao artistDao;
     private AlbumDao albumDao;
     private PlayerListDao playerListDao;
+    private DownLoadInfoDao downLoadInfoDao;
+    private DownLoadManager downLoadManager;
+    private DownLoadBroadcastRecevier downLoadBroadcastRecevier;
 
     private ViewGroup.LayoutParams params;
     private LayoutInflater inflater;
     private SharedPreferences preferences;
     private MediaPlayerManager mediaPlayerManager;
+    private MediaPlayerBroadcastReceiver mediaPlayerBroadcastReceiver;
     private ListView lv_list_web;
+    private XfMenu xfMenu;
 
 
     @Override
@@ -118,7 +138,7 @@ public class HomeActivity extends BaseActivity {
         //检查是否进入SplashActivity界面
         preferences = getSharedPreferences("config",MODE_PRIVATE);
         Boolean isStart = preferences.getBoolean("isStart", true);
-        if(isStart) {
+        if(isStart==null||isStart.equals("true")) {
             startActivity(new Intent(this, SplashActivity.class));
             this.finish();
         }else {
@@ -130,6 +150,7 @@ public class HomeActivity extends BaseActivity {
         artistDao = new ArtistDao(this);
         albumDao = new AlbumDao(this);
         playerListDao = new PlayerListDao(this);
+        downLoadInfoDao=new DownLoadInfoDao(this);
         mediaPlayerManager = new MediaPlayerManager(this);
         params = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
@@ -167,6 +188,9 @@ public class HomeActivity extends BaseActivity {
         tv_player_currentPosition=(TextView)this.findViewById(R.id.tv_player_currentPosition);
         tv_player_duration=(TextView)this.findViewById(R.id.tv_player_duration);
 
+        ibtn_player_control.setOnClickListener(imageButoon_listenner);
+        ibtn_player_albumart.setOnClickListener(imageButoon_listenner);
+
         //切换主屏幕内容容器
         fgv_list_main = (FlingGallery) rl_list_main_content
                 .findViewById(R.id.fgv_list_main);
@@ -183,10 +207,17 @@ public class HomeActivity extends BaseActivity {
         //初始化网络音乐
         lv_list_web = (ListView) list_main_web.findViewById(R.id.lv_list_web);
         lv_list_web.setAdapter(new SongWebAdapter(HomeActivity.this, XmlUtil.parseWebSong(this)).setItemListener(itemListener));
+        lv_list_web.setOnItemClickListener(webItemClickListener);
         //初始化下载管理
         initDownLoad();
 
+        //下载管理
+        downLoadManager=new DownLoadManager(this);
+        downLoadManager.startAndBindService();
+
         mediaPlayerManager.setConnectionListener(serviceConnectionListener);
+
+        createMenu();
     }
 
     private MediaPlayerManager.ServiceConnectionListener serviceConnectionListener = new MediaPlayerManager.ServiceConnectionListener() {
@@ -194,7 +225,7 @@ public class HomeActivity extends BaseActivity {
         public void onServiceConnected() {
             //重新拿数据
             mediaPlayerManager.initPlayerSongInfo();
-//            updateSongItemList();
+            updateSongItemList();
         }
 
         @Override
@@ -203,21 +234,200 @@ public class HomeActivity extends BaseActivity {
         }
     };
 
+    //网络音乐，点击播放/暂停
+    private AdapterView.OnItemClickListener webItemClickListener=new AdapterView.OnItemClickListener() {
+        @Override
+        public void onItemClick(AdapterView<?> parent, View view, int position,
+                                long id) {
+            if(!Common.getNetIsAvailable(HomeActivity.this)){
+                Toast.makeText(HomeActivity.this,"当前网络不可用",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            int songId=Integer.valueOf(((SongWebAdapter.ViewHolder)view.getTag()).tv_web_list_top.getTag().toString());
+            if(songId==mediaPlayerManager.getSongId()){
+                PlayerOrPause(view);
+            }else {
+                ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_pause);
+                mediaPlayerManager.player(songId,MediaPlayerManager.PLAYERFLAG_WEB, null);
+                int[] playerInfo=new int[]{songId,mediaPlayerManager.getPlayerState()};
+                ((SongWebAdapter)lv_list_web.getAdapter()).setPlayerInfo(playerInfo);
+            }
+        }
+    };
+
     @Override
     protected void onStart() {
         super.onStart();
+        //注册播放器-广播接收器
+        mediaPlayerBroadcastReceiver=new MediaPlayerBroadcastReceiver();
+        registerReceiver(mediaPlayerBroadcastReceiver, new IntentFilter(MediaPlayerManager.BROADCASTRECEVIER_ACTON));
+        //注册下载任务-广播接收器
+        downLoadBroadcastRecevier = new DownLoadBroadcastRecevier();
+        registerReceiver(downLoadBroadcastRecevier, new IntentFilter(DownLoadManager.BROADCASTRECEVIER_ACTON));
         mediaPlayerManager.startAndBindService();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
+        unregisterReceiver(mediaPlayerBroadcastReceiver);
+        unregisterReceiver(downLoadBroadcastRecevier);
         mediaPlayerManager.unbindService();
     }
 
     @Override
     protected void onDestroy() {
+        downLoadManager.unbindService();
         super.onDestroy();
+    }
+
+    /**
+     * 播放器-广播接收器
+     * */
+    private class MediaPlayerBroadcastReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int flag=intent.getIntExtra("flag", -1);
+            if(flag==MediaPlayerManager.FLAG_CHANGED){
+                int currentPosition=intent.getIntExtra("currentPosition", 0);
+                int duration=intent.getIntExtra("duration", 0);
+                tv_player_currentPosition.setText(Common.formatSecondTime(currentPosition));
+                tv_player_duration.setText(Common.formatSecondTime(duration));
+                pb_player_progress.setProgress(currentPosition);
+                pb_player_progress.setMax(duration);
+
+            }else if(flag==MediaPlayerManager.FLAG_PREPARE){
+                String albumPic=intent.getStringExtra("albumPic");
+                tv_player_title.setText(intent.getStringExtra("title"));
+                if(TextUtils.isEmpty(albumPic)){
+                    ibtn_player_albumart.setImageResource(R.drawable.min_default_album);
+                }else{
+                    Bitmap bitmap= BitmapFactory.decodeFile(albumPic);
+                    //判断SD图片是否存在
+                    if(bitmap!=null){
+                        ibtn_player_albumart.setImageBitmap(bitmap);
+                    }else{
+                        ibtn_player_albumart.setImageResource(R.drawable.min_default_album);
+                    }
+                }
+                int duration=intent.getIntExtra("duration", 0);
+                int currentPosition=intent.getIntExtra("currentPosition", 0);
+                tv_player_currentPosition.setText(Common.formatSecondTime(currentPosition));
+                tv_player_duration.setText(Common.formatSecondTime(duration));
+                pb_player_progress.setMax(duration);
+                pb_player_progress.setProgress(currentPosition);
+                pb_player_progress.setSecondaryProgress(0);
+
+                //更新播放列表状态
+                updateSongItemList();
+            }else if(flag==MediaPlayerManager.FLAG_INIT){//初始化播放信息
+                int currentPosition=intent.getIntExtra("currentPosition", 0);
+                int duration=intent.getIntExtra("duration", 0);
+                pb_player_progress.setMax(duration);
+                pb_player_progress.setProgress(currentPosition);
+                tv_player_currentPosition.setText(Common.formatSecondTime(currentPosition));
+                tv_player_duration.setText(Common.formatSecondTime(duration));
+                tv_player_title.setText(intent.getStringExtra("title"));
+                String albumPic=intent.getStringExtra("albumPic");
+                if(TextUtils.isEmpty(albumPic)){
+                    ibtn_player_albumart.setImageResource(R.drawable.min_default_album);
+                }else{
+                    Bitmap bitmap=BitmapFactory.decodeFile(albumPic);
+                    //判断SD卡图片是否存在
+                    if(bitmap!=null){
+                        ibtn_player_albumart.setImageBitmap(bitmap);
+                    }else{
+                        ibtn_player_albumart.setImageResource(R.drawable.min_default_album);
+                    }
+                }
+                int playerState=intent.getIntExtra("playerState", 0);
+                if(playerState==MediaPlayerManager.STATE_PLAYER||playerState==MediaPlayerManager.STATE_PREPARE){//播放
+                    ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_pause);
+                }else{
+                    ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_player);
+                }
+
+                if(mediaPlayerManager.getPlayerState()==MediaPlayerManager.STATE_OVER){
+                    if(pageNumber==1||pageNumber==6||pageNumber==7||pageNumber==22||pageNumber==33||pageNumber==44||pageNumber==55){
+                        ((SongItemAdapter)lv_list_change_content.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
+                    }
+                    if(pageNumber==9){
+                        ((DownLoadListAdapter)lv_list_change_content.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
+                    }
+                }
+            }else if(flag==MediaPlayerManager.FLAG_LIST){
+                //自动切歌播放，更新前台歌曲列表
+                updateSongItemList();
+            }else if(flag==MediaPlayerManager.FLAG_BUFFERING){
+                int percent=intent.getIntExtra("percent", 0);
+                percent=(int)(pb_player_progress.getMax()/100f)*percent;
+                pb_player_progress.setSecondaryProgress(percent);
+            }
+        }
+    }
+
+    /**
+     * 下载任务-广播接收器
+     * */
+    private class DownLoadBroadcastRecevier extends BroadcastReceiver{
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int flag=intent.getIntExtra("flag", -1);
+            if(flag==DownLoadManager.FLAG_CHANGED){
+                if(pageNumber==8){
+                    ((DownLoadingListAdapter)lv_list_change_content.getAdapter()).setData(downLoadManager.getDownLoadData());
+                }
+            }else if(flag==DownLoadManager.FLAG_WAIT){
+                Toast.makeText(HomeActivity.this,"\""+intent.getStringExtra("displayname")+"\""+"添加到了下载列表中!",Toast.LENGTH_SHORT).show();
+            }else if(flag==DownLoadManager.FLAG_COMPLETED){
+                if(pageNumber==8){
+                    ((DownLoadingListAdapter)lv_list_change_content.getAdapter()).setData(downLoadManager.getDownLoadData());
+                }
+                Toast.makeText(HomeActivity.this,"\""+intent.getStringExtra("displayname")+"\""+"下载完成!",Toast.LENGTH_SHORT).show();
+            }else if(flag==DownLoadManager.FLAG_FAILED){
+                if(pageNumber==8){
+                    ((DownLoadingListAdapter)lv_list_change_content.getAdapter()).setData(downLoadManager.getDownLoadData());
+                }
+                Toast.makeText(HomeActivity.this,"\""+intent.getStringExtra("displayname")+"\""+"服务器找不到文件!",Toast.LENGTH_SHORT).show();
+            }else if(flag==DownLoadManager.FLAG_TIMEOUT){
+                if(pageNumber==8){
+                    ((DownLoadingListAdapter)lv_list_change_content.getAdapter()).setData(downLoadManager.getDownLoadData());
+                }
+                Toast.makeText(HomeActivity.this,"\""+intent.getStringExtra("displayname")+"\""+"连接已经超时!",Toast.LENGTH_SHORT).show();
+            }else if(flag==DownLoadManager.FLAG_ERROR){
+                if(pageNumber==8){
+                    ((DownLoadingListAdapter)lv_list_change_content.getAdapter()).setData(downLoadManager.getDownLoadData());
+                }
+                Toast.makeText(HomeActivity.this,"\""+intent.getStringExtra("displayname")+"\""+"发生错误!",Toast.LENGTH_SHORT).show();
+            }else if(flag==DownLoadManager.FLAG_COMMON){
+                if(pageNumber==8){
+                    ((DownLoadingListAdapter)lv_list_change_content.getAdapter()).setData(downLoadManager.getDownLoadData());
+                }
+            }
+        }
+
+    }
+
+    //自动切歌播放，更新前台歌曲列表
+    private void updateSongItemList(){
+        int[] playerInfo=new int[]{mediaPlayerManager.getSongId(),mediaPlayerManager.getPlayerState()};
+        if(mediaPlayerManager.getPlayerFlag()==MediaPlayerManager.PLAYERFLAG_WEB){
+            ((SongWebAdapter)lv_list_web.getAdapter()).setPlayerInfo(playerInfo);
+        }else{
+            if(pageNumber==1||pageNumber==6||pageNumber==7||pageNumber==22||pageNumber==33||pageNumber==44||pageNumber==55){
+                ((SongItemAdapter)lv_list_change_content.getAdapter()).setPlayerInfo(playerInfo);
+            }
+            if(pageNumber==9){
+                ((DownLoadListAdapter)lv_list_change_content.getAdapter()).setPlayerInfo(playerInfo);
+            }
+        }
+        int state=mediaPlayerManager.getPlayerState();
+        if(state==MediaPlayerManager.STATE_PLAYER||state==MediaPlayerManager.STATE_PREPARE){//播放
+            ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_pause);
+        }else if(state==MediaPlayerManager.STATE_PAUSE){//暂停
+            ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_player);
+        }
     }
 
     /**
@@ -239,10 +449,8 @@ public class HomeActivity extends BaseActivity {
     private void checkScannerTip() {
         Boolean isScannerTip = preferences.getBoolean("isScannerTip", false);
         if(!isScannerTip){
-            final AlertDialog.Builder builder = new AlertDialog.Builder(HomeActivity.this);
-            builder.setTitle("扫描提示");
-            builder.setMessage("是否要扫描本地歌曲入库");
-            builder.setPositiveButton("确认", new DialogInterface.OnClickListener() {
+            new MyDialog.Builder(this).setTitle("扫描提示").setMessage("是否要扫描本地歌曲入库").
+                    setPositiveButton("确定",new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface dialog, int which) {
                     dialog.cancel();
@@ -250,10 +458,8 @@ public class HomeActivity extends BaseActivity {
                     Intent intent = new Intent(HomeActivity.this,ScanMusicActivity.class);
                     startActivityForResult(intent,1);
                 }
-            });
-            builder.setNegativeButton("取消", null);
-            builder.create().show();
-            preferences.edit().putBoolean("isScannerTip", false).commit();
+            }).setNegativeButton("取消",null).create().show();
+            preferences.edit().putBoolean("isScannerTip", true).commit();
         }
     }
 
@@ -264,14 +470,16 @@ public class HomeActivity extends BaseActivity {
             if(pageNumber == 0){
                 int state = mediaPlayerManager.getPlayerState();
                 if(state == MediaPlayerManager.STATE_NULL || state == MediaPlayerManager.STATE_OVER || state == MediaPlayerManager.STATE_PAUSE){
-//                    cancelAutoShutdown();
-//                    mediaPlayerManager.stop();
-//                    downLoadManager.stop();
+                    cancelAutoShutdown();
+                    mediaPlayerManager.stop();
+                    downLoadManager.stop();
                 }
                 finish();
                 return true;
             }
             return backPage();
+        }else if(keyCode==KeyEvent.KEYCODE_MENU&&!xfMenu.isShowing()){
+            xfMenu.showAtLocation(findViewById(R.id.rl_content_parent), Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL, 0, 0);
         }
         return super.onKeyDown(keyCode, event);
     }
@@ -299,6 +507,117 @@ public class HomeActivity extends BaseActivity {
         return false;
     }
 
+    /**
+     * 创建底部菜单
+     * */
+    private void createMenu(){
+        xfMenu=new XfMenu(HomeActivity.this);
+
+        List<int[]> data1=new ArrayList<int[]>();
+        data1.add(new int[]{R.drawable.btn_menu_scanner,R.string.scan_top_title});
+        data1.add(new int[]{R.drawable.btn_menu_skin,R.string.skinsetting_title});
+        data1.add(new int[]{R.drawable.btn_menu_exit,R.string.exit_title});
+        xfMenu.addItem("常用", data1, new MenuAdapter.ItemListener() {
+            @Override
+            public void onClickListener(int position, View view) {
+                xfMenu.cancel();
+                if(position==0){
+                    Intent it=new Intent(HomeActivity.this,ScanMusicActivity.class);
+                    startActivityForResult(it, 1);
+                }else if(position==1){
+                    Intent it=new Intent(HomeActivity.this,SkinSettingActivity.class);
+                    startActivityForResult(it,2);
+                }else if(position==2){
+                    cancelAutoShutdown();
+                    mediaPlayerManager.stop();
+                    downLoadManager.stop();
+                    finish();
+                }
+            }
+        });
+
+        List<int[]> data2=new ArrayList<int[]>();
+        data2.add(new int[]{R.drawable.btn_menu_sleep,R.string.sleep_title});
+
+        Setting setting = new Setting(this, false);
+        String brightness=setting.getValue(Setting.KEY_BRIGHTNESS);
+        if(brightness!=null&&brightness.equals("0")){//夜间模式
+            data2.add(new int[]{R.drawable.btn_menu_brightness,R.string.brightness_title});
+        }else{
+            data2.add(new int[]{R.drawable.btn_menu_darkness,R.string.darkness_title});
+        }
+        xfMenu.addItem("工具", data2, new MenuAdapter.ItemListener() {
+            @Override
+            public void onClickListener(int position, View view) {
+                xfMenu.cancel();
+                if(position==0){
+                    final Setting setting=new Setting(HomeActivity.this, true);
+                    final String autotime=setting.getValue(Setting.KEY_AUTO_SLEEP);
+
+                    final EditText et_alarmTime=new EditText(HomeActivity.this);
+                    et_alarmTime.setKeyListener(new DigitsKeyListener());
+                    et_alarmTime.setHint("单位：分钟");
+
+                    if(!TextUtils.isEmpty(autotime)){
+                        et_alarmTime.setText(autotime);
+                    }
+                    et_alarmTime.setLayoutParams(params);
+                    et_alarmTime.setTextSize(12);
+                    new MyDialog.Builder(HomeActivity.this).setTitle("设置定时关闭时间")
+                            .setView(et_alarmTime).setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            dialog.cancel();
+                            dialog.dismiss();
+                            AlarmManager alarmManager=(AlarmManager)getSystemService(ALARM_SERVICE);
+                            PendingIntent operation=PendingIntent.getBroadcast(HomeActivity.this, 0, new Intent(HomeActivity.this,AutoShutdownRecevier.class), PendingIntent.FLAG_UPDATE_CURRENT);
+                            String str=et_alarmTime.getText().toString();
+
+                            //取消定时关机
+                            if(!TextUtils.isEmpty(autotime)){
+                                alarmManager.cancel(operation);
+                            }
+                            //启动定时关闭
+                            if(!TextUtils.isEmpty(str)){
+                                int autotime=Integer.valueOf(str);
+                                if(autotime!=0){
+                                    setting.setValue(Setting.KEY_AUTO_SLEEP,String.valueOf(autotime));
+                                    alarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis()+autotime*60*1000, operation);
+                                }
+                                Toast.makeText(HomeActivity.this,"音乐播放器将在"+et_alarmTime.getText().toString()+"分钟之后自动关闭",Toast.LENGTH_SHORT).show();
+                            }else{
+                                setting.setValue(Setting.KEY_AUTO_SLEEP,"");
+                            }
+                        }
+                    }).setNegativeButton("取消", null).create().show();
+                }else if(position==1){
+                    setBrightness(view);
+                }
+            }
+        });
+
+        List<int[]> data3=new ArrayList<int[]>();
+        data3.add(new int[]{R.drawable.btn_menu_about,R.string.about_title});
+        xfMenu.addItem("帮助", data3, new MenuAdapter.ItemListener() {
+            @Override
+            public void onClickListener(int position, View view) {
+                xfMenu.cancel();
+                startActivity(new Intent(HomeActivity.this,AboutActivity.class));
+            }
+        });
+
+        xfMenu.create();
+    }
+    /**
+     * 取消定时关闭
+     * */
+    private void cancelAutoShutdown(){
+        AlarmManager alarmManager=(AlarmManager)getSystemService(ALARM_SERVICE);
+        PendingIntent operation=PendingIntent.getBroadcast(HomeActivity.this, 0, new Intent(HomeActivity.this,AutoShutdownRecevier.class), PendingIntent.FLAG_UPDATE_CURRENT);
+        alarmManager.cancel(operation);
+        new Setting(HomeActivity.this, true).setValue(Setting.KEY_AUTO_SLEEP,"");
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -317,6 +636,7 @@ public class HomeActivity extends BaseActivity {
                 new int[]{R.id.iv_list_item_icon,R.id.tv_list_item_title,R.id.iv_list_item_icon2});
         ListView lv_list_music = (ListView) list_main_music.findViewById(R.id.lv_list_music);
         lv_list_music.setAdapter(music_adapter);
+        btn_list_random_music2.setVisibility(View.GONE);
         lv_list_music.setOnItemClickListener(list_music_listener);
     }
 
@@ -340,7 +660,26 @@ public class HomeActivity extends BaseActivity {
     private SongWebAdapter.ItemListener itemListener = new SongWebAdapter.ItemListener() {
         @Override
         public void onDoadLoad(Song song) {
-
+            if(!Common.getNetIsAvailable(HomeActivity.this)){
+                Toast.makeText(HomeActivity.this,"当前网络不可用",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if(!Common.isExistSdCard()){
+                Toast.makeText(HomeActivity.this,"请先插入SD卡",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            //判断是否在下载列表中
+            if(downLoadInfoDao.isExist(song.getNetUrl())){
+                Toast.makeText(HomeActivity.this,"此歌曲已经在下载列表中",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            //判断是否已经下载过
+            if(songDao.isExist(song.getNetUrl())){
+                Toast.makeText(HomeActivity.this,"此歌曲已经在下载过了",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            //添加到下载列表中
+            downLoadManager.add(song);
         }
     };
 
@@ -356,9 +695,24 @@ public class HomeActivity extends BaseActivity {
             }else if(pageNumber == 5){//播放列表列表
                 JumpPages(2,55,view.getTag());
             }else if(pageNumber == 8){//正在下载列表
-
+                DownLoadingListAdapter.ViewHolder viewHolder=(DownLoadingListAdapter.ViewHolder)view.getTag();
+                int state=Integer.valueOf(viewHolder.tv_download_list_item_top.getTag().toString());
+                String url=viewHolder.tv_download_list_item_number.getTag().toString();
+                downLoadingListItemListener.onPause(url, state);
             }else if(pageNumber == 9){//下载完成列表
-
+                if(mediaPlayerManager.getPlayerFlag()==MediaPlayerManager.PLAYERFLAG_WEB){
+                    int[] playerInfo=new int[]{-1,-1};
+                    ((SongWebAdapter)lv_list_web.getAdapter()).setPlayerInfo(playerInfo);
+                }
+                int songId=Integer.valueOf(((DownLoadListAdapter.ViewHolder)view.getTag()).ibtn_download_list_item_menu.getTag().toString());
+                if(songId==mediaPlayerManager.getSongId()){
+                    PlayerOrPause(view);
+                }else {
+                    ibtn_player_control.setBackgroundResource(R.drawable.player_btn_mini_pause);
+                    mediaPlayerManager.player(songId,MediaPlayerManager.PLAYERFLAG_DOWNLOAD, null);
+                    int[] playerInfo=new int[]{songId,mediaPlayerManager.getPlayerState()};
+                    ((DownLoadListAdapter)lv_list_change_content.getAdapter()).setPlayerInfo(playerInfo);
+                }
             }else if(pageNumber == 1){//全部歌曲列表
                 playerMusicByItem(view, MediaPlayerManager.PLAYERFLAG_ALL, null);
             }else if(pageNumber == 6){//我最爱听列表
@@ -378,10 +732,11 @@ public class HomeActivity extends BaseActivity {
     };
 
     private void playerMusicByItem(View view,int flag,String condition) {
-//        if(mediaPlayerManager.getPlayerFlag() == MediaPlayerManager.PLAYERFLAG_WEB){
-//            //网络列表#####################################################
-//
-//        }
+        if(mediaPlayerManager.getPlayerFlag() == MediaPlayerManager.PLAYERFLAG_WEB){
+            //网络列表#####################################################
+            int[] playerInfo=new int[]{-1,-1};
+            ((SongWebAdapter)lv_list_web.getAdapter()).setPlayerInfo(playerInfo);
+        }
         int songId = Integer.valueOf(((SongItemAdapter.ViewHolder) view.getTag()).tv_song_list_item_bottom.getTag().toString());
         if(songId == mediaPlayerManager.getSongId()){
             PlayerOrPause(view);
@@ -420,11 +775,11 @@ public class HomeActivity extends BaseActivity {
             itemId = R.drawable.music_list_item_pause;
         }
         if(mediaPlayerManager.getPlayerFlag()==MediaPlayerManager.PLAYERFLAG_WEB){
-//            if(v==null){
-//                ((SongItemWebAdapter)lv_list_web.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
-//            }else{
-//                ((SongItemWebAdapter.ViewHolder)v.getTag()).tv_web_list_item_number.setBackgroundResource(itemRsId);
-//            }
+            if(view==null){
+                ((SongWebAdapter)lv_list_web.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
+            }else{
+                ((SongWebAdapter.ViewHolder)view.getTag()).tv_web_list_number.setBackgroundResource(itemId);
+            }
         }else {
             if(pageNumber == 1 || pageNumber == 6 || pageNumber == 7 || pageNumber == 22 || pageNumber == 33 || pageNumber == 44 || pageNumber == 55){
                 if(view ==null){
@@ -433,15 +788,16 @@ public class HomeActivity extends BaseActivity {
                     ((SongItemAdapter.ViewHolder)view.getTag()).tv_song_list_item_number.setBackgroundResource(itemId);
                 }
             }
-//            if(pageNumber==9){
-//                if(v==null){
-//                    ((DownLoadListAdapter)lv_list_change_content.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
-//                }else{
-//                    ((DownLoadListAdapter.ViewHolder)v.getTag()).tv_download_list_item_number.setBackgroundResource(itemRsId);
-//                }
-//            }
+            if(pageNumber==9){
+                if(view==null){
+                    ((DownLoadListAdapter)lv_list_change_content.getAdapter()).setPlayerState(mediaPlayerManager.getPlayerState());
+                }else{
+                    ((DownLoadListAdapter.ViewHolder)view.getTag()).tv_download_list_item_number.setBackgroundResource(itemId);
+                }
+            }
         }
     }
+
 
     private SongItemAdapter.ItemListener songItemListener = new SongItemAdapter.ItemListener() {
         @Override
@@ -473,6 +829,7 @@ public class HomeActivity extends BaseActivity {
         }
     };
 
+    //歌曲长按事件
     private AdapterView.OnItemLongClickListener longClickListener = new AdapterView.OnItemLongClickListener() {
         @Override
         public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
@@ -910,9 +1267,16 @@ public class HomeActivity extends BaseActivity {
                 btn_list_random_music2.setTag(data.size());
             }else if(position == 8){//正在下载
                 tv_list_content_title.setText("正在下载");
-
+                lv_list_change_content.setAdapter(new DownLoadingListAdapter(HomeActivity.this,
+                        downLoadManager.getDownLoadData()).setItemListener(downLoadingListItemListener));
             }else if(position == 9){//下载完成
-
+                tv_list_content_title.setText("下载完成");
+                List<Song> data=songDao.searchByDownLoad();
+                lv_list_change_content.setAdapter(new DownLoadListAdapter(HomeActivity.this,
+                        data,playerInfo).setItemListener(downLoadListItemListener));
+                btn_list_random_music2.setVisibility(View.VISIBLE);
+                btn_list_random_music2.setText("(共"+data.size()+"首)随机播放");
+                btn_list_random_music2.setTag(data.size());
             }
             pageNumber = position;
         }else if(index == 2){//二级界面
@@ -936,6 +1300,36 @@ public class HomeActivity extends BaseActivity {
             pageNumber = position;
         }
     }
+
+    /**
+     * 正在下载-开始下载/暂停下载，删除
+     * */
+    private DownLoadingListAdapter.ItemListener downLoadingListItemListener=new DownLoadingListAdapter.ItemListener() {
+
+        @Override
+        public void onDelete(String url) {
+            downLoadManager.delete(url);
+        }
+
+        @Override
+        public void onPause(String url,int state) {
+            if(state==DownLoadManager.STATE_PAUSE||state==DownLoadManager.STATE_ERROR||state==DownLoadManager.STATE_FAILED){
+                downLoadManager.start(url);
+            }else if(state==DownLoadManager.STATE_DOWNLOADING||state==DownLoadManager.STATE_CONNECTION||state==DownLoadManager.STATE_WAIT){
+                downLoadManager.pause(url);
+            }
+        }
+    };
+
+    /**
+     * 下载完成-删除
+     * */
+    private DownLoadListAdapter.ItemListener downLoadListItemListener=new DownLoadListAdapter.ItemListener(){
+        @Override
+        public void onDelete(int id, String path, int position) {
+            createDeleteSongDialog(id, path, position,false);
+        }
+    };
 
     /**
      * 扫描后 更新本地列表的数据展示
@@ -1055,7 +1449,7 @@ public class HomeActivity extends BaseActivity {
                 PlayerOrPause(null);
             }else if(v.getId() == R.id.ibtn_player_albumart){
                 //进入playerMainActivity
-//                startActivity(new Intent(HomeActivity.this,));
+                startActivity(new Intent(HomeActivity.this,PlayerMainActivity.class));
             }
         }
     };

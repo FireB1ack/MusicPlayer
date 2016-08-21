@@ -298,7 +298,7 @@ public class SongDao {
             }
             cursor.close();
         }
-        sb.deleteCharAt(sb.length()-1);
+        sb.deleteCharAt(sb.length() - 1);
         int rs = db.delete("song","_id in("+sb.toString()+")",str);
         db.close();
         return rs;
@@ -648,6 +648,48 @@ public class SongDao {
             db.execSQL("update song set playerList=? where _id=?", new Object[]{playerList + "#" +list + "#", id});
         }
         db.close();
+    }
+
+    /**
+     * 判断下载任务是否存在
+     * */
+    public boolean isExist(String url) {
+        int rs = 0;
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Cursor cr = db.rawQuery("SELECT COUNT(*) FROM song WHERE netUrl=?", new String[] { url });
+        while (cr.moveToNext()) {
+            rs = cr.getInt(0);
+        }
+        cr.close();
+        db.close();
+        return rs > 0;
+    }
+
+    /**
+     * 查询完成下载的歌曲
+     * */
+    public List<Song> searchByDownLoad() {
+        List<Song> list = new ArrayList<Song>();
+        Song song = null;
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Cursor cr = db.rawQuery("SELECT A._id, A.filePath, " +
+                "A.name AS Aname,B.name AS Bname FROM song AS A " +
+                "INNER JOIN artist AS B " +
+                "ON A.artistId=B._id " +
+                "WHERE A.isDownFinish=1", null);
+        while (cr.moveToNext()) {
+            song = new Song();
+            song.setId(cr.getInt(cr.getColumnIndex("_id")));
+            song.setName(cr.getString(cr.getColumnIndex("Aname")));
+            song.setArtist(new Artist(0, cr.getString(cr
+                    .getColumnIndex("Bname")), null));
+            song.setFilePath(cr.getString(cr
+                    .getColumnIndex("filePath")));
+            list.add(song);
+        }
+        cr.close();
+        db.close();
+        return list;
     }
 
 }

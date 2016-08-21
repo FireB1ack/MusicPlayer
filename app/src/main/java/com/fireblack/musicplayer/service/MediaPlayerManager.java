@@ -137,16 +137,51 @@ public class MediaPlayerManager {
             Log.e("12345","OK");
             mMediaPlayerService.pauseOrPlayer();
         }else{
-            Log.e("12345","no song");
+            Log.e("12345", "no song");
+        }
+    }
+
+    /**
+     * 播放上一首
+     * */
+    public void previousPlayer(){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.previousPlayer();
+        }
+    }
+
+    /**
+     * 播放下一首
+     * */
+    public void nextPlayer(){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.nextPlayer();
         }
     }
 
     /**
      * 根据指定条件播放
      * */
-    public void player(int id,int playerFlag,String parameter){
+    public void player(int id, int playerFlag,String parameter){
         if(mMediaPlayerService!=null){
             mMediaPlayerService.player(id, playerFlag, parameter);
+        }
+    }
+    /**
+     * 指定位置播放
+     * */
+    public void seekTo(int msec){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.seekTo(msec);
+        }
+    }
+
+    /**
+     * 停止播放
+     * */
+    public void stop(){
+        if(mMediaPlayerService != null){
+            mMediaPlayerService.stop();
         }
     }
 
@@ -197,6 +232,25 @@ public class MediaPlayerManager {
             return mMediaPlayerService.getPlayerFlag();
         }
         return -1;
+    }
+
+    /**
+     * 获取当前播放模式
+     * */
+    public int getPlayerMode(){
+        if(mMediaPlayerService!=null){
+            return mMediaPlayerService.getPlayerMode();
+        }
+        return -1;
+    }
+
+    /**
+     * 设置播放模式
+     * */
+    public void setPlayerMode(int playerMode){
+        if(mMediaPlayerService!=null){
+            mMediaPlayerService.setPlayerMode(playerMode);
+        }
     }
 
     /**

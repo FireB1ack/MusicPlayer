@@ -4,6 +4,9 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.DisplayMetrics;
 import android.view.Display;
@@ -79,11 +82,25 @@ public class Common {
         map.put("icon2",String.valueOf(R.drawable.playlist_sign));
         data.add(map);
 
-        map.put("icon",String.valueOf(R.drawable.download_icon_finish));
-        map.put("title","下载完成");
-        map.put("icon2",String.valueOf(R.drawable.playlist_sign));
-        data.add(map);
+        HashMap<String, Object> map2 = new HashMap<String, Object>();
+        map2.put("icon",String.valueOf(R.drawable.download_icon_finish));
+        map2.put("title","下载完成");
+        map2.put("icon2",String.valueOf(R.drawable.playlist_sign));
+        data.add(map2);
         return data;
+    }
+
+    /**
+     * 修改文件名
+     * */
+    public static String renameFileName(String str){
+        int i=str.lastIndexOf('.');
+        if(i!=-1){
+            File file=new File(str);
+            file.renameTo(new File(str.substring(0,i)));
+            return str.substring(0,i);
+        }
+        return str;
     }
 
     /**
@@ -139,6 +156,14 @@ public class Common {
     }
 
     /**
+     * 格式化文件大小 Byte->KB
+     * */
+    public static String formatByteToKB(int size){
+        float kb=size/1024f;
+        return String.format("%.2f",kb);
+    }
+
+    /**
      * Type--KB
      */
     public static String getByteToKB(int size){
@@ -157,6 +182,19 @@ public class Common {
     }
 
     /**
+     * 计算百分比
+     * */
+    public static String getPercent(int n,float total){
+        float rs=(n/total)*100;
+        //判断是否是正整数
+        if(String.valueOf(rs).indexOf(".0")!=-1){
+            return String.valueOf((int)rs);
+        }else{
+            return  String.format("%.1f",rs);
+        }
+    }
+
+    /**
      *  获取屏幕的大小
      *  0:宽度  1：高度
      */
@@ -168,6 +206,43 @@ public class Common {
         int[] s = new int[]{(int)(outMetrics.density * outMetrics.widthPixels),
                 (int)(outMetrics.density * outMetrics.heightPixels)};
         return s;
+    }
+
+    /**
+     * 判断网络是否可用
+     * */
+    public static boolean getNetIsAvailable(Context context){
+        ConnectivityManager connManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo=connManager.getActiveNetworkInfo();
+        if(networkInfo==null){
+            return false;
+        }
+        return networkInfo.isAvailable();
+    }
+
+
+    /**
+     * 检查SD卡是否已装载
+     * */
+    public static boolean isExistSdCard(){
+        return Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED);
+    }
+
+    /**
+     * 判断目录是否存在，不在则创建
+     * */
+    public static void isExistDirectory(String directoryName) {
+        File file = new File(directoryName);
+        if (!file.exists()) {
+            file.mkdirs();
+        }
+    }
+
+    /**
+     * 获得SD目录路径
+     * */
+    public static String getSdCardPath(){
+        return Environment.getExternalStorageDirectory().getPath();
     }
 
     /**

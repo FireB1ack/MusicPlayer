@@ -33,8 +33,7 @@ public class SplashActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //设置无标题
-//        requestWindowFeature(Window.FEATURE_NO_TITLE);
+
         setContentView(R.layout.activity_splash);
 
         rl_root = (RelativeLayout) findViewById(R.id.rl_root);

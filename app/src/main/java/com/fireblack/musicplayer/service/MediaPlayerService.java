@@ -1,5 +1,7 @@
 package com.fireblack.musicplayer.service;
 
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
@@ -14,6 +16,7 @@ import android.util.Log;
 import android.view.View;
 
 import com.fireblack.musicplayer.R;
+import com.fireblack.musicplayer.activity.HomeActivity;
 import com.fireblack.musicplayer.custom.Setting;
 import com.fireblack.musicplayer.dao.SongDao;
 import com.fireblack.musicplayer.entity.Song;
@@ -33,11 +36,12 @@ import java.util.concurrent.Semaphore;
 public class MediaPlayerService extends Service {
 
     private final IBinder mBinder = new MyBind();
-
+    private static final int NOTIFICATIONID = 0;
     // 播放动作
     private static final int ACTION_NEXT = 1;// 下一首播放
     private static final int ACTION_PREVIOUS = 2;// 上一首播放
     private static final int ACTION_AUTO = 0;// 自动执行下一首
+    private static final int LATELY_COUNT = 15;// 最近播放的保存数量
     private MediaPlayer mPlayer;
     private List<Song> list;//播放歌曲列表
     private Song song;
@@ -46,7 +50,7 @@ public class MediaPlayerService extends Service {
     private int playerMode;//播放模式
     private int currentDuration = 0;//已经播放时长
     private List<Integer> randomIds;
-    private ExecutorService mExecutorService; //线程池
+    private ExecutorService mExecutorService = null; //线程池
     private boolean isRun = true;
     final Semaphore mSemaphore = new Semaphore(1);
     private SongDao songDao;
@@ -54,6 +58,10 @@ public class MediaPlayerService extends Service {
     private boolean isDeleteStop=false;
     private String parameter;//查询参数
     private String latelyStr;//最近播放歌曲拼接而成的字符串
+
+    private NotificationManager mNotificationManager;
+    private Notification mNotification;
+    private PendingIntent mPendingIntent;
 
     private String isStartUp;
     private boolean isPrepare = true;
@@ -97,9 +105,21 @@ public class MediaPlayerService extends Service {
 
         init();
 
+        mPlayer.setOnCompletionListener(completionListener);
+        mPlayer.setOnBufferingUpdateListener(bufferingUpdateListener);
+        mPlayer.setOnErrorListener(errorListener);
+
         // 申请wake lock保证了CPU维持唤醒状态
         mPlayer.setWakeMode(getApplicationContext(),
                 PowerManager.PARTIAL_WAKE_LOCK);
+
+        // 通知栏初始化
+        mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this,
+                HomeActivity.class), PendingIntent.FLAG_UPDATE_CURRENT);
+        mNotification = new Notification();
+        mNotification.icon = R.drawable.icon;
+        mNotification.flags = Notification.FLAG_ONGOING_EVENT;
     }
 
     /**
@@ -247,6 +267,39 @@ public class MediaPlayerService extends Service {
         sendBroadcast(it);
     }
 
+    // 播放完成时
+    private MediaPlayer.OnCompletionListener completionListener = new MediaPlayer.OnCompletionListener() {
+        @Override
+        public void onCompletion(MediaPlayer mp) {
+            isRun = false;
+            playerState = MediaPlayerManager.STATE_PAUSE;
+            doPlayer(ACTION_AUTO, true);
+            sendBroadcast(new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON)
+                    .putExtra("flag", MediaPlayerManager.FLAG_LIST));
+        }
+    };
+
+    // 缓冲时
+    private MediaPlayer.OnBufferingUpdateListener bufferingUpdateListener = new MediaPlayer.OnBufferingUpdateListener() {
+        @Override
+        public void onBufferingUpdate(MediaPlayer mp, int percent) {
+            sendBroadcast(new Intent(MediaPlayerManager.BROADCASTRECEVIER_ACTON)
+                    .putExtra("flag", MediaPlayerManager.FLAG_BUFFERING)
+                    .putExtra("percent", percent));
+        }
+    };
+
+    // 播放发生错误时
+    private MediaPlayer.OnErrorListener errorListener = new MediaPlayer.OnErrorListener() {
+
+        @Override
+        public boolean onError(MediaPlayer mp, int what, int extra) {
+            doPlayer(ACTION_AUTO, true);
+            return true;
+        }
+
+    };
+
     /**
      * 播放
      */
@@ -279,7 +332,7 @@ public class MediaPlayerService extends Service {
         try {
             mPlayer.setDataSource(path);
             mPlayer.prepare();
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -573,6 +626,13 @@ public class MediaPlayerService extends Service {
     }
 
     /**
+     * 指定位置播放
+     * */
+    public void seekTo(int msec) {
+        mPlayer.seekTo(msec);
+    }
+
+    /**
      * 删除歌曲
      */
     public void delete(int songId){
@@ -670,7 +730,7 @@ public class MediaPlayerService extends Service {
         return durationTime;
     }
 
-    private  int getSongDurationTIme(int id,int durationTime){
+    private int getSongDurationTIme(int id, int durationTime){
         int time = durationTime;
         MediaPlayer player = MediaPlayer.create(this, Uri.parse(song.getFilePath()));
         try {
@@ -682,7 +742,7 @@ public class MediaPlayerService extends Service {
             player.release();
             player = null;
         }
-        if(time != -1){
+        if (time != -1){
             songDao.updateByDuration(id, time);
         }
         return time;
@@ -764,6 +824,25 @@ public class MediaPlayerService extends Service {
         return song.getAlbum().getPicPath();
     }
 
+    /**
+     * 设置播放模式
+     * */
+    public void setPlayerMode(int playerMode) {
+        this.playerMode = playerMode;
+        // 单曲循环
+        if (playerMode == MediaPlayerManager.MODE_CIRCLEONE) {
+            mPlayer.setLooping(true);
+        } else {
+            mPlayer.setLooping(false);
+            if (playerMode == MediaPlayerManager.MODE_RANDOM) {
+                randomIds.clear();
+                if (song != null) {
+                    randomIds.add(song.getId());
+                }
+            }
+        }
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -835,7 +914,7 @@ public class MediaPlayerService extends Service {
         playerInfos[5] = latelyStr;
         setting.setPlayerInfo(playerInfos);
         setting.setValue(Setting.KEY_ISSTARTUP, "true");
-
+        mNotificationManager.cancel(NOTIFICATIONID);
         playerState = MediaPlayerManager.STATE_STOP;
         isRun = false;
 
@@ -852,6 +931,37 @@ public class MediaPlayerService extends Service {
         stopSelf();
     }
 
+    /**
+     * 加入最近播放列表
+     * */
+    private void addLately() {
+        if (!TextUtils.isEmpty(latelyStr)) {
+            String[] ss = latelyStr.split(",");
+            boolean t_flag = false;
+            String new_lately = "";
+            String t_new_lately = "";
+            int len = ss.length;
+            for (int i = 0; i < len; i++) {
+                if (!ss[i].equals(song.getId() + "")) {
+                    new_lately += ss[i] + ",";
+                    if (i < ss.length - 1)
+                        t_new_lately += ss[i] + ",";
+                } else {
+                    t_flag = true;
+                }
+            }
+            if (t_flag)
+                len--;
+            if (len < LATELY_COUNT) {
+                latelyStr = song.getId() + "," + new_lately;
+            } else {
+                latelyStr = song.getId() + "," + t_new_lately;
+            }
+        } else {
+            latelyStr = song.getId() + ",";
+        }
+    }
+
     private class MediaPlayerRunnable implements Runnable {
         @Override
         public void run() {
@@ -863,7 +973,7 @@ public class MediaPlayerService extends Service {
                 }
                 // 最近播放列表（保存本地歌曲，不保存网络的）
                 if (playerFlag != MediaPlayerManager.PLAYERFLAG_WEB) {
-//                    addLately();
+                    addLately();
                 }
                 mPlayer.reset();
                 if (playerFlag == MediaPlayerManager.PLAYERFLAG_WEB) {
@@ -920,6 +1030,37 @@ public class MediaPlayerService extends Service {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    /**
+     * 随机播放
+     * */
+    public void randomPlayer(int flag,String p){
+        if(flag==playerFlag&&p.equals(parameter==null?"":parameter)){
+            playerFlag=flag;
+            parameter=p;
+        }else{
+            playerFlag=flag;
+            parameter=p;
+            resetPlayerList();
+        }
+        playerMode=MediaPlayerManager.MODE_RANDOM;
+        randomIds.clear();
+        if(list.size()>0){
+            int random_index = new Random().nextInt(list.size());
+            song=list.get(random_index);
+            randomIds.add(song.getId());
+            currentDuration=0;
+            player();
+        }else{
+            isRun = false;
+            if (mPlayer.isPlaying()) {
+                mPlayer.stop();
+            }
+            song=null;
+            currentDuration=0;
+            playerOver();
         }
     }
 }
